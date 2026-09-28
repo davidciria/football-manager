@@ -118,7 +118,8 @@ async function getSessionUser(request, env) {
   if (!token) return null;
   const row = await env.DB.prepare(
     `SELECT s.token AS token, s.expires_at AS expires_at,
-            u.id AS id, u.email AS email
+            u.id AS id, u.email AS email,
+            u.data_owner_id AS data_owner_id, u.share_code AS share_code
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token = ?`
   )
@@ -129,7 +130,14 @@ async function getSessionUser(request, env) {
     await env.DB.prepare("DELETE FROM sessions WHERE token = ?").bind(token).run();
     return null;
   }
-  return { id: row.id, email: row.email, token };
+  const ownerId = row.data_owner_id || row.id;
+  return {
+    id: row.id,
+    email: row.email,
+    token,
+    dataOwnerId: ownerId,
+    shareCode: row.share_code,
+  };
 }
 
 /* ------------------------------- handlers --------------------------------- */
@@ -155,14 +163,16 @@ async function handleRegister(request, env) {
 
   const id = crypto.randomUUID();
   const salt = randomHex(16);
+  const shareCode = randomHex(4);
   const passwordHash = await hashPassword(password, salt);
   const now = Math.floor(Date.now() / 1000);
 
   try {
     await env.DB.prepare(
-      "INSERT INTO users (id, email, password_hash, salt, created_at) VALUES (?, ?, ?, ?, ?)"
+      `INSERT INTO users (id, email, password_hash, salt, created_at, data_owner_id, share_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-      .bind(id, email, passwordHash, salt, now)
+      .bind(id, email, passwordHash, salt, now, id, shareCode)
       .run();
   } catch {
     return json({ error: "Ese email ya está registrado" }, 409);
@@ -230,7 +240,7 @@ async function handleGetDataAll(env, user) {
   const { results } = await env.DB.prepare(
     "SELECT key, value FROM user_data WHERE user_id = ?"
   )
-    .bind(user.id)
+    .bind(user.dataOwnerId)
     .all();
   const data = {};
   for (const row of results) data[row.key] = row.value;
@@ -241,7 +251,7 @@ async function handleGetData(env, user, key) {
   const row = await env.DB.prepare(
     "SELECT value FROM user_data WHERE user_id = ? AND key = ?"
   )
-    .bind(user.id, key)
+    .bind(user.dataOwnerId, key)
     .first();
   if (!row) return json({ error: "No encontrado" }, 404);
   return json({ key, value: row.value });
@@ -263,16 +273,71 @@ async function handlePutData(request, env, user, key) {
      VALUES (?, ?, ?, ?)
      ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
   )
-    .bind(user.id, key, body.value, now)
+    .bind(user.dataOwnerId, key, body.value, now)
     .run();
   return json({ key, ok: true });
 }
 
 async function handleDeleteData(env, user, key) {
   await env.DB.prepare("DELETE FROM user_data WHERE user_id = ? AND key = ?")
-    .bind(user.id, key)
+    .bind(user.dataOwnerId, key)
     .run();
   return json({ key, ok: true });
+}
+
+/* ---------------------------- equipo compartido --------------------------- */
+
+async function handleGetShare(env, user) {
+  const ownerId = user.dataOwnerId;
+  const owner = await env.DB.prepare(
+    "SELECT id, email, share_code FROM users WHERE id = ?"
+  )
+    .bind(ownerId)
+    .first();
+  const { results } = await env.DB.prepare(
+    "SELECT email FROM users WHERE data_owner_id = ? ORDER BY created_at"
+  )
+    .bind(ownerId)
+    .all();
+  return json({
+    code: owner?.share_code || null,
+    ownerEmail: owner?.email || null,
+    isOwner: ownerId === user.id,
+    members: results.map((r) => r.email),
+  });
+}
+
+async function handleJoinShare(request, env, user) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "JSON inválido" }, 400);
+  }
+  const code = String(body?.code || "").trim().toLowerCase();
+  if (!code) return json({ error: "Introduce un código" }, 400);
+
+  const owner = await env.DB.prepare(
+    "SELECT id, data_owner_id, share_code FROM users WHERE share_code = ?"
+  )
+    .bind(code)
+    .first();
+  if (!owner) return json({ error: "Código no válido" }, 404);
+
+  const ownerId = owner.data_owner_id || owner.id;
+  if (ownerId === user.id) return json({ error: "Ese código es el tuyo" }, 400);
+
+  await env.DB.prepare("UPDATE users SET data_owner_id = ? WHERE id = ?")
+    .bind(ownerId, user.id)
+    .run();
+  return json({ ok: true, code: owner.share_code });
+}
+
+async function handleLeaveShare(env, user) {
+  await env.DB.prepare("UPDATE users SET data_owner_id = id WHERE id = ?")
+    .bind(user.id)
+    .run();
+  return json({ ok: true });
 }
 
 /* -------------------------------- router ---------------------------------- */
@@ -291,6 +356,10 @@ async function handleApi(request, env, url) {
   // A partir de aquí se requiere sesión.
   const user = await getSessionUser(request, env);
   if (!user) return json({ error: "No autenticado" }, 401);
+
+  if (path === "/share" && method === "GET") return handleGetShare(env, user);
+  if (path === "/share/join" && method === "POST") return handleJoinShare(request, env, user);
+  if (path === "/share/leave" && method === "POST") return handleLeaveShare(env, user);
 
   if (path === "/data" && method === "GET") return handleGetDataAll(env, user);
 

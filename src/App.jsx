@@ -851,6 +851,154 @@ function TabBar({ tab, setTab, hasActiveMatch }) {
 }
 
 /* ============================================================================
+   EQUIPO COMPARTIDO
+============================================================================ */
+
+function ShareSection({ user }) {
+  const [info, setInfo] = useState(null);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/share", { credentials: "same-origin" });
+      if (res.ok) setInfo(await res.json());
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const join = async () => {
+    const value = code.trim();
+    if (!value) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/share/join", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: value }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ type: "err", text: body.error || "No se pudo unir al equipo" });
+        setBusy(false);
+        return;
+      }
+      window.location.reload();
+    } catch {
+      setMsg({ type: "err", text: "Error de conexión" });
+      setBusy(false);
+    }
+  };
+
+  const leave = async () => {
+    setBusy(true);
+    try {
+      await fetch("/api/share/leave", { method: "POST", credentials: "same-origin" });
+      window.location.reload();
+    } catch {
+      setBusy(false);
+    }
+  };
+
+  const copy = async () => {
+    if (!info?.code) return;
+    try {
+      await navigator.clipboard.writeText(info.code);
+      setMsg({ type: "ok", text: "Código copiado" });
+    } catch {
+      setMsg({ type: "ok", text: "Código: " + info.code });
+    }
+  };
+
+  if (!user) return null;
+
+  const others = (info?.members || []).filter((e) => e !== user.email);
+
+  return (
+    <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--hair)" }}>
+      <span className="fm-label">Equipo compartido</span>
+      <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 10 }}>
+        {others.length > 0
+          ? `Compartiendo con: ${others.join(", ")}`
+          : "Aún no compartes los datos con nadie."}
+      </div>
+
+      {info?.code && (
+        <div style={{ display: "flex", gap: 8, alignItems: "stretch", marginBottom: 6 }}>
+          <div
+            className="fm-num"
+            style={{
+              flex: 1,
+              background: "var(--pitch-deep)",
+              border: "1px solid var(--hair-strong)",
+              borderRadius: 10,
+              padding: "8px 12px",
+              fontSize: 22,
+              letterSpacing: "0.14em",
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
+            {info.code.toUpperCase()}
+          </div>
+          <button className="fm-btn fm-btn-ghost" onClick={copy}>
+            Copiar
+          </button>
+        </div>
+      )}
+      <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 14, lineHeight: 1.4 }}>
+        Pasa este código a tu compañero para que vea y edite los mismos datos.
+      </div>
+
+      <span className="fm-label">Unirse a otro equipo</span>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          className="fm-input"
+          placeholder="Código del compañero"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          style={{ flex: 1, textTransform: "uppercase" }}
+        />
+        <button className="fm-btn fm-btn-primary" onClick={join} disabled={busy || !code.trim()}>
+          Unirse
+        </button>
+      </div>
+
+      {msg && (
+        <div
+          style={{
+            fontSize: 12.5,
+            marginTop: 8,
+            color: msg.type === "err" ? "var(--card-red)" : "var(--accent-sky)",
+          }}
+        >
+          {msg.text}
+        </div>
+      )}
+
+      {info && !info.isOwner && (
+        <button
+          className="fm-btn fm-btn-ghost fm-btn-block"
+          style={{ marginTop: 12 }}
+          onClick={leave}
+          disabled={busy}
+        >
+          Salir del equipo compartido
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================================
    SETTINGS MODAL
 ============================================================================ */
 
@@ -894,6 +1042,7 @@ function SettingsModal({ settings, onSave, onClose, user, onLogout }) {
               </button>
             </div>
           )}
+          <ShareSection user={user} />
         </div>
         <div className="fm-sheet-actions">
           <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => onSave({ teamName: teamName.trim() || "Mi Equipo", halfMinutes: halfMinutes || 25 })}>
