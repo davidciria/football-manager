@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "football-manager",
+  "main": "worker/src/index.js",
+  "compatibility_date": "2025-07-18",
+  "account_id": "1a78e1a0b79aabca1aecdee5c4eb3276",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "football-manager-db",
+      "database_id": "3eabfc1f-8c12-4fc9-9947-6e1010ea5c4e",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
