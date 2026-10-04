@@ -30,16 +30,16 @@ const CSS = `
   --pitch-deep:#0E2019;
   --pitch-mid:#153A2C;
   --pitch-mid2:#1E4D3B;
-  --pitch-line:#EAF4EE;
-  --ink-soft:#8FB6A2;
-  --ink-faint:#628270;
-  --accent-amber:#F2A93B;
+  --pitch-line:#F2FAF5;
+  --ink-soft:#A9CBBB;
+  --ink-faint:#7C9C8A;
+  --accent-amber:#F5B23F;
   --accent-amber-ink:#3A2405;
-  --accent-sky:#4FA9E8;
+  --accent-sky:#5DB6F0;
   --card-yellow:#F5C518;
-  --card-red:#E4483C;
-  --hair:rgba(234,244,238,0.10);
-  --hair-strong:rgba(234,244,238,0.18);
+  --card-red:#FF5A4D;
+  --hair:rgba(234,244,238,0.12);
+  --hair-strong:rgba(234,244,238,0.24);
 }
 
 .fm-root{
@@ -58,7 +58,7 @@ const CSS = `
   overflow:hidden;
 }
 .fm-root *{box-sizing:border-box;}
-.fm-num{font-family:'Teko',sans-serif;font-weight:600;letter-spacing:0.01em;}
+.fm-num{font-family:'Teko',sans-serif;font-weight:700;letter-spacing:0.01em;color:currentColor;}
 
 .fm-scroll{
   flex:1 1 auto;
@@ -90,22 +90,22 @@ const CSS = `
 .fm-tabbar{
   flex-shrink:0;
   display:flex;
-  background:var(--pitch-mid);
-  border-top:1px solid var(--hair);
+  background:#122E23;
+  border-top:1px solid var(--hair-strong);
   padding:8px 6px calc(8px + env(safe-area-inset-bottom));
 }
 .fm-tab{
   flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-  background:transparent;border:none;color:var(--ink-soft);
-  padding:6px 2px;font-family:'Manrope',sans-serif;font-size:10.5px;font-weight:700;
+  background:transparent;border:none;color:#A9CBBB;
+  padding:6px 2px;font-family:'Manrope',sans-serif;font-size:11px;font-weight:700;
   letter-spacing:0.01em;touch-action:manipulation;
 }
 .fm-tab.active{color:var(--accent-amber);}
 
 /* ---- Generic layout ---- */
 .fm-section{padding:16px 18px;}
-.fm-h2{font-family:'Teko',sans-serif;font-weight:600;font-size:22px;letter-spacing:0.01em;margin:0 0 10px;}
-.fm-label{font-size:12px;color:var(--ink-soft);font-weight:600;margin-bottom:6px;display:block;}
+.fm-h2{font-family:'Teko',sans-serif;font-weight:700;font-size:23px;letter-spacing:0.01em;margin:0 0 10px;color:#F2FAF5;}
+.fm-label{font-size:12px;color:#B7D6C6;font-weight:700;margin-bottom:6px;display:block;text-transform:uppercase;letter-spacing:0.04em;}
 .fm-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .fm-list-row{
   display:flex;align-items:center;gap:12px;padding:13px 2px;border-bottom:1px solid var(--hair);
@@ -113,11 +113,12 @@ const CSS = `
 .fm-list-row:last-child{border-bottom:none;}
 
 .fm-input{
-  background:var(--pitch-mid);border:1px solid var(--hair-strong);color:var(--pitch-line);
+  background:#0A1812;border:1px solid rgba(234,244,238,0.28);color:#FFFFFF;
   border-radius:10px;padding:11px 12px;font-size:16px;font-family:'Manrope',sans-serif;
-  width:100%;outline:none;
+  width:100%;outline:none;font-weight:600;
 }
-.fm-input:focus{border-color:var(--accent-amber);}
+.fm-input::placeholder{color:#7C9C8A;}
+.fm-input:focus{border-color:var(--accent-amber);box-shadow:0 0 0 3px rgba(245,178,63,0.20);}
 .fm-textarea{min-height:80px;resize:vertical;line-height:1.5;}
 
 .fm-btn{
@@ -129,25 +130,29 @@ const CSS = `
 .fm-btn-primary:active{background:#DE9A2D;}
 .fm-btn-ghost{background:transparent;color:var(--pitch-line);border:1px solid var(--hair-strong);}
 .fm-btn-ghost:active{background:var(--pitch-mid2);}
-.fm-btn-danger{background:transparent;color:var(--card-red);border:1px solid rgba(228,72,60,0.4);}
+.fm-btn-danger{background:transparent;color:#FF7A6E;border:1px solid rgba(255,90,77,0.5);}
 .fm-btn-block{width:100%;}
 .fm-btn-sm{padding:8px 12px;font-size:13px;border-radius:9px;}
 .fm-btn:disabled{opacity:0.4;}
 
 .fm-chip{
-  display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:100px;
-  font-size:11.5px;font-weight:700;border:1px solid var(--hair-strong);color:var(--ink-soft);
+  display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:11px;
+  font-size:13px;font-weight:800;border:1.5px solid rgba(234,244,238,0.30);
+  background:#1B4636;color:#F2FAF5;box-shadow:0 1px 3px rgba(0,0,0,0.25);
+  touch-action:manipulation;line-height:1;
 }
+.fm-chip:active{background:#245743;transform:scale(0.97);}
 .fm-chip.on{background:var(--accent-amber);color:var(--accent-amber-ink);border-color:var(--accent-amber);}
+.fm-chip svg{flex-shrink:0;}
 
 .fm-badge-role{
-  width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;
-  font-size:10px;font-weight:800;flex-shrink:0;
+  width:27px;height:27px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:800;flex-shrink:0;color:#0A1812;
 }
-.role-POR{background:rgba(242,169,59,0.18);color:var(--accent-amber);}
-.role-DEF{background:rgba(79,169,232,0.18);color:var(--accent-sky);}
-.role-MED{background:rgba(143,182,162,0.18);color:var(--pitch-line);}
-.role-DEL{background:rgba(228,72,60,0.18);color:#F08880;}
+.role-POR{background:#F5B23F;}
+.role-DEF{background:#5DB6F0;}
+.role-MED{background:#9FD8BE;}
+.role-DEL{background:#FF8A7E;}
 
 .fm-guest-tag{
   font-size:10px;font-weight:800;color:var(--accent-sky);background:rgba(79,169,232,0.14);
@@ -159,7 +164,7 @@ const CSS = `
 .fm-mvp-row:last-child{border-bottom:none;}
 .fm-mvp-row.leader{background:rgba(242,169,59,0.08);border-radius:10px;padding-left:8px;padding-right:8px;}
 .fm-mvp-count{
-  font-family:'Teko',sans-serif;font-weight:600;font-size:22px;min-width:26px;text-align:center;
+  font-family:'Teko',sans-serif;font-weight:700;font-size:23px;min-width:26px;text-align:center;color:#FFFFFF;
 }
 .fm-mvp-empty{text-align:center;padding:30px 20px;color:var(--ink-soft);font-size:13px;}
 
@@ -178,21 +183,21 @@ const CSS = `
   border:1.5px solid var(--hair-strong);color:var(--pitch-line);display:flex;align-items:center;justify-content:center;
   touch-action:manipulation;
 }
-.fm-tool-btn.active{border-color:var(--accent-amber);background:rgba(242,169,59,0.12);color:var(--accent-amber);}
+.fm-tool-btn.active{border-color:var(--accent-amber);background:rgba(245,178,63,0.18);color:var(--accent-amber);}
 .fm-color-row{display:flex;gap:8px;padding:8px 0;}
 .fm-color-dot{
-  width:26px;height:26px;border-radius:50%;border:2px solid transparent;flex-shrink:0;
+  width:30px;height:30px;border-radius:50%;border:2px solid rgba(0,0,0,0.35);flex-shrink:0;
 }
-.fm-color-dot.active{border-color:var(--pitch-line);}
+.fm-color-dot.active{border-color:#FFFFFF;box-shadow:0 0 0 2px rgba(255,255,255,0.4);}
 .fm-token-row{display:flex;gap:8px;overflow-x:auto;padding:4px 0 10px;}
 .fm-token-chip{
   flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;
-  opacity:0.55;
+  opacity:0.5;
 }
 .fm-token-chip.active{opacity:1;}
-.fm-token-chip .fm-shirt{width:34px;height:34px;}
-.fm-token-chip .fm-shirt .fm-num{font-size:15px;}
-.fm-token-chip-label{font-size:9px;color:var(--ink-soft);font-weight:700;}
+.fm-token-chip .fm-shirt{width:36px;height:36px;}
+.fm-token-chip .fm-shirt .fm-num{font-size:16px;}
+.fm-token-chip-label{font-size:10.5px;color:#C7E2D6;font-weight:700;}
 
 .fm-empty{
   text-align:center;padding:40px 20px;color:var(--ink-soft);
@@ -203,11 +208,11 @@ const CSS = `
 
 /* ---- Player number badge (shirt) ---- */
 .fm-shirt{
-  width:40px;height:40px;border-radius:50%;background:var(--pitch-mid2);
-  border:2px solid var(--hair-strong);display:flex;align-items:center;justify-content:center;
+  width:40px;height:40px;border-radius:50%;background:#0A1812;
+  border:2px solid rgba(234,244,238,0.32);display:flex;align-items:center;justify-content:center;
   flex-shrink:0;
 }
-.fm-shirt .fm-num{font-size:18px;color:var(--pitch-line);line-height:1;}
+.fm-shirt .fm-num{font-size:19px;color:#FFFFFF;line-height:1;}
 
 /* ---- Formation setup pitch ---- */
 .fm-pitch-wrap{
@@ -222,14 +227,15 @@ const CSS = `
 }
 .fm-slot-badge{
   width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  border:2.5px solid var(--hair-strong);background:rgba(14,32,25,0.88);
+  border:2.5px solid rgba(234,244,238,0.45);background:rgba(8,20,15,0.92);
+  box-shadow:0 2px 8px rgba(0,0,0,0.35);
 }
-.fm-slot-badge.filled{background:var(--pitch-deep);border-color:var(--accent-amber);}
-.fm-slot-badge .fm-num{font-size:20px;}
-.fm-slot-empty-icon{color:var(--ink-faint);}
+.fm-slot-badge.filled{background:#08140F;border-color:var(--accent-amber);}
+.fm-slot-badge .fm-num{font-size:21px;color:#FFFFFF;font-weight:700;}
+.fm-slot-empty-icon{color:#7C9C8A;}
 .fm-slot-label{
-  font-size:10px;font-weight:700;color:var(--pitch-line);background:rgba(14,32,25,0.85);
-  padding:2px 7px;border-radius:100px;max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:10.5px;font-weight:800;color:#FFFFFF;background:rgba(8,20,15,0.9);
+  padding:2px 8px;border-radius:100px;max-width:82px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 
 /* ---- Formation picker ---- */
@@ -262,7 +268,7 @@ const CSS = `
   display:flex;align-items:baseline;gap:6px;
 }
 .fm-sb-timer .added{font-size:16px;color:var(--accent-amber);}
-.fm-sb-controls{display:flex;align-items:center;gap:8px;margin-top:12px;}
+.fm-sb-controls{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap;}
 .fm-sb-rival{display:flex;align-items:center;gap:6px;}
 .fm-round-btn{
   width:36px;height:36px;border-radius:50%;border:1px solid var(--hair-strong);background:transparent;
@@ -281,8 +287,8 @@ const CSS = `
 .fm-bench-card{
   flex-shrink:0;width:64px;display:flex;flex-direction:column;align-items:center;gap:5px;
 }
-.fm-bench-card .fm-shirt{background:var(--pitch-mid);}
-.fm-bench-name{font-size:10px;text-align:center;color:var(--ink-soft);font-weight:600;
+.fm-bench-card .fm-shirt{background:#0A1812;}
+.fm-bench-name{font-size:11px;text-align:center;color:#C7E2D6;font-weight:700;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;}
 
 /* ---- Timeline ---- */
@@ -370,22 +376,22 @@ const CSS = `
 
 .fm-stat-table{width:100%;border-collapse:collapse;}
 .fm-stat-table th{
-  text-align:left;font-size:10.5px;color:var(--ink-soft);font-weight:700;padding:0 8px 8px 0;
+  text-align:left;font-size:10.5px;color:#B7D6C6;font-weight:700;padding:0 8px 8px 0;
   border-bottom:1px solid var(--hair-strong);
 }
-.fm-stat-table td{padding:9px 8px 9px 0;border-bottom:1px solid var(--hair);font-size:13px;}
+.fm-stat-table td{padding:9px 8px 9px 0;border-bottom:1px solid var(--hair);font-size:13px;color:#F2FAF5;}
 .fm-stat-table td.num, .fm-stat-table th.num{text-align:center;}
 
-.fm-segmented{display:flex;background:var(--pitch-deep);border-radius:11px;padding:3px;gap:2px;}
+.fm-segmented{display:flex;background:#0A1812;border-radius:11px;padding:3px;gap:2px;flex-wrap:wrap;}
 .fm-segmented button{
-  flex:1;border:none;background:transparent;color:var(--ink-soft);font-weight:700;font-size:12.5px;
+  flex:1;min-width:58px;border:none;background:transparent;color:#C7E2D6;font-weight:700;font-size:12.5px;
   padding:8px 4px;border-radius:8px;
 }
 .fm-segmented button.active{background:var(--accent-amber);color:var(--accent-amber-ink);}
 
 .fm-loading{
   position:fixed;inset:0;background:var(--pitch-deep);display:flex;align-items:center;justify-content:center;
-  color:var(--ink-soft);font-family:'Teko',sans-serif;font-size:20px;z-index:100;
+  color:var(--pitch-line);font-family:'Teko',sans-serif;font-size:22px;z-index:100;
 }
 `;
 
@@ -1660,12 +1666,12 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onUndo, onFinishMatch, onD
             <button className="fm-round-btn" onClick={() => rivalGoal(-1)}><Minus size={14} /></button>
             <button className="fm-round-btn" onClick={() => rivalGoal(1)}><Plus size={14} /></button>
           </div>
-          <button className="fm-chip" onClick={addExtraTime}>+1'</button>
-          {activeMatch.phase === "h1" && <button className="fm-chip" onClick={goToHalftime}>Ir a descanso</button>}
-          <button className="fm-chip" onClick={() => setFormationOpen(true)}><Shirt size={12} /> {activeMatch.formation}</button>
-          <button className="fm-chip" onClick={() => setOrderOpen(true)}><ArrowLeftRight size={12} /> Cambios</button>
-          <button className="fm-chip" onClick={onUndo}><RotateCcw size={12} /> Deshacer</button>
-          <button className="fm-chip" onClick={() => setNotesOpen(true)}>Notas</button>
+          <button className="fm-chip" onClick={addExtraTime}>+1' añadido</button>
+          {activeMatch.phase === "h1" && <button className="fm-chip" onClick={goToHalftime}><Pause size={13} /> Descanso</button>}
+          <button className="fm-chip" onClick={() => setFormationOpen(true)}><Shirt size={14} /> {activeMatch.formation}</button>
+          <button className="fm-chip" onClick={() => setOrderOpen(true)}><ArrowLeftRight size={14} /> Cambios</button>
+          <button className="fm-chip" onClick={onUndo}><RotateCcw size={13} /> Deshacer</button>
+          <button className="fm-chip" onClick={() => setNotesOpen(true)}><PenLine size={14} /> Notas</button>
         </div>
       </div>
 
@@ -2503,11 +2509,11 @@ function TemporadaTab({ history, squad }) {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(234,244,238,0.08)" vertical={false} />
-              <XAxis dataKey="name" tick={{ fill: "#8FB6A2", fontSize: 11 }} axisLine={{ stroke: "rgba(234,244,238,0.15)" }} tickLine={false} />
-              <YAxis tick={{ fill: "#8FB6A2", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: "#153A2C", border: "1px solid rgba(234,244,238,0.18)", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#EAF4EE" }} cursor={{ fill: "rgba(234,244,238,0.06)" }} />
+              <XAxis dataKey="name" tick={{ fill: "#C7E2D6", fontSize: 11.5 }} axisLine={{ stroke: "rgba(234,244,238,0.15)" }} tickLine={false} />
+              <YAxis tick={{ fill: "#C7E2D6", fontSize: 11.5 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={{ background: "#0A1812", border: "1px solid rgba(234,244,238,0.28)", borderRadius: 8, fontSize: 12.5 }} labelStyle={{ color: "#F2FAF5" }} cursor={{ fill: "rgba(234,244,238,0.08)" }} />
               <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                {chartData.map((_, i) => <Cell key={i} fill="#F2A93B" />)}
+                {chartData.map((_, i) => <Cell key={i} fill="#F5B23F" />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -2523,18 +2529,18 @@ function TemporadaTab({ history, squad }) {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={positionChartData} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(234,244,238,0.08)" vertical={false} />
-                <XAxis dataKey="name" tick={{ fill: "#8FB6A2", fontSize: 11 }} axisLine={{ stroke: "rgba(234,244,238,0.15)" }} tickLine={false} />
-                <YAxis tick={{ fill: "#8FB6A2", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={{ background: "#153A2C", border: "1px solid rgba(234,244,238,0.18)", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#EAF4EE" }} cursor={{ fill: "rgba(234,244,238,0.06)" }} />
-                <Bar dataKey="POR" stackId="pos" fill="#F2A93B" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="DEF" stackId="pos" fill="#4FA9E8" />
-                <Bar dataKey="MED" stackId="pos" fill="#8FB6A2" />
-                <Bar dataKey="DEL" stackId="pos" fill="#F08880" radius={[6, 6, 0, 0]} />
+                <XAxis dataKey="name" tick={{ fill: "#C7E2D6", fontSize: 11.5 }} axisLine={{ stroke: "rgba(234,244,238,0.15)" }} tickLine={false} />
+                <YAxis tick={{ fill: "#C7E2D6", fontSize: 11.5 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={{ background: "#153A2C", border: "1px solid rgba(234,244,238,0.18)", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#F2FAF5" }} cursor={{ fill: "rgba(234,244,238,0.06)" }} />
+                <Bar dataKey="POR" stackId="pos" fill="#F5B23F" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="DEF" stackId="pos" fill="#5DB6F0" />
+                <Bar dataKey="MED" stackId="pos" fill="#9FD8BE" />
+                <Bar dataKey="DEL" stackId="pos" fill="#FF8A7E" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
           <div style={{ display: "flex", gap: 14, marginBottom: 22, flexWrap: "wrap" }}>
-            {[["POR", "#F2A93B"], ["DEF", "#4FA9E8"], ["MED", "#8FB6A2"], ["DEL", "#F08880"]].map(([r, c]) => (
+            {[["POR", "#F5B23F"], ["DEF", "#5DB6F0"], ["MED", "#9FD8BE"], ["DEL", "#FF8A7E"]].map(([r, c]) => (
               <div key={r} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--ink-soft)", fontWeight: 700 }}>
                 <span style={{ width: 9, height: 9, borderRadius: 3, background: c, display: "inline-block" }} />
                 {ROLE_LABEL[r]}
@@ -2689,8 +2695,8 @@ function drawStroke(ctx, w, h, stroke) {
     ctx.strokeStyle = stroke.color;
     ctx.stroke();
     if (stroke.label) {
-      ctx.fillStyle = stroke.kind === "ball" ? "#0E2019" : stroke.color;
-      ctx.font = `700 ${Math.round(r * 0.95)}px Manrope, sans-serif`;
+      ctx.fillStyle = stroke.kind === "ball" ? "#0E2019" : "#FFFFFF";
+      ctx.font = `800 ${Math.round(r * 0.95)}px Manrope, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(stroke.label, cx, cy + 1);

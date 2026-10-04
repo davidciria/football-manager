@@ -3,9 +3,9 @@ import React, { useState } from "react";
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 .fm-auth{
-  --deep:#0E2019; --mid:#153A2C; --mid2:#1E4D3B; --line:#EAF4EE;
-  --soft:#8FB6A2; --faint:#628270; --amber:#F2A93B; --amber-ink:#3A2405;
-  --red:#E4483C; --hair:rgba(234,244,238,0.10); --hair2:rgba(234,244,238,0.18);
+  --deep:#0E2019; --mid:#153A2C; --mid2:#1E4D3B; --line:#F2FAF5;
+  --soft:#A9CBBB; --faint:#7C9C8A; --amber:#F5B23F; --amber-ink:#3A2405;
+  --red:#FF5A4D; --hair:rgba(234,244,238,0.12); --hair2:rgba(234,244,238,0.26);
   height:100vh; height:100dvh; width:100%; display:flex; align-items:center; justify-content:center;
   overflow-y:auto;
   background:radial-gradient(1200px 600px at 50% -10%, var(--mid2), var(--deep) 60%);
@@ -33,12 +33,12 @@ const CSS = `
 .fm-field{margin-bottom:14px;}
 .fm-field label{display:block; font-size:12px; font-weight:700; color:var(--soft); margin-bottom:6px; letter-spacing:0.02em;}
 .fm-input{
-  width:100%; padding:13px 14px; border-radius:12px; font-size:16px; font-family:inherit;
-  background:rgba(0,0,0,0.28); border:1px solid var(--hair2); color:var(--line); outline:none;
+  width:100%; padding:13px 14px; border-radius:12px; font-size:16px; font-family:inherit; font-weight:600;
+  background:#0A1812; border:1px solid var(--hair2); color:#FFFFFF; outline:none;
   transition:border-color .15s ease, box-shadow .15s ease;
 }
 .fm-input::placeholder{color:var(--faint);}
-.fm-input:focus{border-color:var(--amber); box-shadow:0 0 0 3px rgba(242,169,59,0.18);}
+.fm-input:focus{border-color:var(--amber); box-shadow:0 0 0 3px rgba(245,178,63,0.20);}
 .fm-auth-btn{
   width:100%; margin-top:6px; padding:14px; border:none; border-radius:12px; cursor:pointer;
   background:var(--amber); color:var(--amber-ink); font-family:inherit; font-weight:800; font-size:15px;
