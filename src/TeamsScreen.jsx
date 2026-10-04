@@ -23,13 +23,22 @@ const CSS = `
 .fm-teams-title{font-family:'Teko',sans-serif; font-weight:700; font-size:34px; line-height:0.95; letter-spacing:0.02em;}
 .fm-teams-sub{font-size:12.5px; color:var(--soft); font-weight:600;}
 .fm-team-card{
-  display:flex; align-items:center; gap:14px; width:100%; text-align:left;
+  display:flex; align-items:stretch; gap:0; width:100%;
   background:linear-gradient(180deg,var(--mid),var(--deep)); border:1px solid var(--hair2);
-  border-radius:16px; padding:16px; margin-bottom:10px; color:var(--line); cursor:pointer;
-  font-family:inherit; transition:transform .06s ease, border-color .15s ease;
+  border-radius:16px; margin-bottom:10px; overflow:hidden;
 }
-.fm-team-card:active{transform:scale(0.99);}
-.fm-team-card:hover{border-color:rgba(245,178,63,0.5);}
+.fm-team-main{
+  display:flex; align-items:center; gap:14px; flex:1; text-align:left; min-width:0;
+  background:none; border:none; color:var(--line); cursor:pointer; padding:16px;
+  font-family:inherit; transition:background .12s ease;
+}
+.fm-team-main:active{background:rgba(234,244,238,0.05);}
+.fm-team-share{
+  flex-shrink:0; width:56px; display:flex; align-items:center; justify-content:center;
+  background:rgba(234,244,238,0.05); border:none; border-left:1px solid var(--hair2);
+  color:var(--amber); cursor:pointer;
+}
+.fm-team-share:active{background:rgba(245,178,63,0.15);}
 .fm-team-badge{
   width:46px; height:46px; border-radius:13px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
   background:var(--amber); color:var(--amber-ink); font-family:'Teko',sans-serif; font-weight:700; font-size:24px;
@@ -48,6 +57,10 @@ const CSS = `
 .fm-dot-owner{background:var(--amber);}
 .fm-dot-editor{background:var(--sky);}
 .fm-dot-viewer{background:var(--faint);}
+.fm-avatar{
+  width:38px; height:38px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  background:var(--mid2); border:1px solid var(--hair2); font-weight:800; font-size:15px; color:var(--line);
+}
 .fm-role{
   display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:800; letter-spacing:0.03em;
   padding:3px 9px; border-radius:100px; text-transform:uppercase;
@@ -98,6 +111,18 @@ const CSS = `
 `;
 
 const ROLE_LABEL = { owner: "Propietario", editor: "Editor", viewer: "Solo lectura" };
+
+function Share2Icon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
+  );
+}
 
 function api(path, options = {}) {
   return fetch("/api" + path, {
@@ -197,27 +222,27 @@ export default function TeamsScreen({ user, onOpenTeam, onLogout }) {
         </div>
 
         {teams.map((t) => (
-          <button key={t.id} className="fm-team-card" onClick={() => onOpenTeam(t.id)}>
-            <div className="fm-team-badge">{t.name.slice(0, 1).toUpperCase()}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div className="fm-team-name">{t.name}</div>
-                <span className={`fm-role fm-role-${t.role}`}>{ROLE_LABEL[t.role]}</span>
+          <div key={t.id} className="fm-team-card">
+            <button className="fm-team-main" onClick={() => onOpenTeam(t.id)}>
+              <div className="fm-team-badge">{t.name.slice(0, 1).toUpperCase()}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div className="fm-team-name">{t.name}</div>
+                  <span className={`fm-role fm-role-${t.role}`}>{ROLE_LABEL[t.role]}</span>
+                </div>
+                <div className="fm-team-meta">
+                  {t.members === 1 ? "Solo tú" : `Compartido con ${t.members - 1}`}
+                </div>
               </div>
-              <div className="fm-team-meta">
-                {t.members} {t.members === 1 ? "miembro" : "miembros"}
-              </div>
-              <div className="fm-team-members">
-                {(t.membersList || []).map((m) => (
-                  <span key={m.email} className="fm-member-chip">
-                    <span className={`fm-dot fm-dot-${m.role}`} />
-                    {m.email}
-                    <span className="fm-member-role">{m.isOwner ? "Owner" : ROLE_LABEL[m.role]}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          </button>
+            </button>
+            <button
+              className="fm-team-share"
+              title="Compartir equipo"
+              onClick={() => setManageTeam(t.id)}
+            >
+              <Share2Icon />
+            </button>
+          </div>
         ))}
 
         <div className="fm-teams-actions">
@@ -394,41 +419,17 @@ function ManageTeamSheet({ teamId, onClose }) {
       <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="fm-sheet-handle" />
         <div className="fm-sheet-head">
-          <div className="fm-sheet-title">{team.name}</div>
+          <div>
+            <div className="fm-sheet-title">Compartir equipo</div>
+            <div style={{ fontSize: 12.5, color: "var(--soft)", fontWeight: 600 }}>{team.name}</div>
+          </div>
           <button className="fm-xbtn" onClick={onClose}>✕</button>
         </div>
         <div className="fm-sheet-body">
-          {isOwner && (
-            <>
-              <span className="fm-label2">Nombre del equipo</span>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input className="fm-input2" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
-                <button className="fm-teams-btn" style={{ flex: "0 0 auto", padding: "0 16px" }} onClick={rename} disabled={busy || name.trim() === team.name}>
-                  Guardar
-                </button>
-              </div>
-            </>
-          )}
-
-          <span className="fm-label2">Código de invitación</span>
-          <div style={{ display: "flex", gap: 8 }}>
-            <div className="fm-code-box">{team.shareCode.toUpperCase()}</div>
-            <button className="fm-teams-btn primary" style={{ flex: "0 0 auto", padding: "0 16px" }} onClick={copyCode}>
-              Copiar
-            </button>
-          </div>
-          <p className="fm-hint" style={{ marginTop: 8 }}>
-            Quien use este código entra como <b>solo lectura</b>. {isOwner ? "Puedes cambiar su rol abajo." : ""}
-          </p>
-          {isOwner && (
-            <button className="fm-teams-btn" style={{ marginTop: 10 }} onClick={regenerate} disabled={busy}>
-              Generar código nuevo (revoca el anterior)
-            </button>
-          )}
-
-          <span className="fm-label2">Miembros ({team.members.length})</span>
+          <span className="fm-label2">Con quién está compartido ({team.members.length})</span>
           {team.members.map((m) => (
             <div key={m.email} className="fm-member-row">
+              <div className="fm-avatar">{(m.email[0] || "?").toUpperCase()}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.email}</div>
                 <div style={{ fontSize: 11.5, color: "var(--soft)" }}>
@@ -456,11 +457,37 @@ function ManageTeamSheet({ teamId, onClose }) {
               )}
             </div>
           ))}
+          {team.members.length === 1 && (
+            <p className="fm-hint" style={{ marginTop: 10 }}>Todavía no lo has compartido con nadie.</p>
+          )}
+
+          <span className="fm-label2">Invitar con código</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div className="fm-code-box">{team.shareCode.toUpperCase()}</div>
+            <button className="fm-teams-btn primary" style={{ flex: "0 0 auto", padding: "0 16px" }} onClick={copyCode}>
+              Copiar
+            </button>
+          </div>
+          <p className="fm-hint" style={{ marginTop: 8 }}>
+            Quien use este código entra como <b>solo lectura</b>. {isOwner ? "Puedes cambiar su rol arriba." : ""}
+          </p>
+          {isOwner && (
+            <button className="fm-teams-btn" style={{ marginTop: 10 }} onClick={regenerate} disabled={busy}>
+              Generar código nuevo (revoca el anterior)
+            </button>
+          )}
 
           {msg && <div className={msg.type === "err" ? "fm-err" : "fm-ok"}>{msg.text}</div>}
 
           {isOwner && (
-            <div style={{ marginTop: 20, paddingTop: 14, borderTop: "1px solid var(--hair)" }}>
+            <div style={{ marginTop: 24, paddingTop: 14, borderTop: "1px solid var(--hair)" }}>
+              <span className="fm-label2">Ajustes del equipo</span>
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <input className="fm-input2" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+                <button className="fm-teams-btn" style={{ flex: "0 0 auto", padding: "0 16px" }} onClick={rename} disabled={busy || name.trim() === team.name}>
+                  Renombrar
+                </button>
+              </div>
               {confirmDelete ? (
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="fm-teams-btn" style={{ flex: 1, color: "var(--red)" }} onClick={deleteTeam} disabled={busy}>
