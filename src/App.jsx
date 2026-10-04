@@ -812,6 +812,7 @@ function ShareSection({ user }) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -827,7 +828,7 @@ function ShareSection({ user }) {
   }, [load]);
 
   const join = async () => {
-    const value = code.trim();
+    const value = code.trim().toUpperCase();
     if (!value) return;
     setBusy(true);
     setMsg(null);
@@ -852,6 +853,7 @@ function ShareSection({ user }) {
   };
 
   const leave = async () => {
+    if (!window.confirm("¿Seguro que quieres salir del equipo compartido? Dejarás de ver los datos compartidos.")) return;
     setBusy(true);
     try {
       await fetch("/api/share/leave", { method: "POST", credentials: "same-origin" });
@@ -864,72 +866,125 @@ function ShareSection({ user }) {
   const copy = async () => {
     if (!info?.code) return;
     try {
-      await navigator.clipboard.writeText(info.code);
-      setMsg({ type: "ok", text: "Código copiado" });
+      await navigator.clipboard.writeText(info.code.toUpperCase());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
     } catch {
-      setMsg({ type: "ok", text: "Código: " + info.code });
+      setMsg({ type: "ok", text: "Código: " + info.code.toUpperCase() });
     }
   };
 
   if (!user) return null;
 
-  const others = (info?.members || []).filter((e) => e !== user.email);
+  const members = info?.members || [];
+  const others = members.filter((e) => e !== user.email);
+  const shared = others.length > 0 || (info && !info.isOwner);
 
   return (
     <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--hair)" }}>
-      <span className="fm-label">Equipo compartido</span>
-      <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 10 }}>
-        {others.length > 0
-          ? `Compartiendo con: ${others.join(", ")}`
-          : "Aún no compartes los datos con nadie."}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+        <Users size={16} color="var(--accent-amber)" />
+        <span style={{ fontWeight: 800, fontSize: 15 }}>Equipo compartido</span>
+      </div>
+      <div style={{ fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.5, marginBottom: 14 }}>
+        Compartid la plantilla, los partidos y las pizarras entre varias personas. Todos podrán ver y editar los mismos datos.
       </div>
 
+      {/* Estado actual */}
+      <div
+        style={{
+          display: "flex", alignItems: "center", gap: 10, marginBottom: 16,
+          background: shared ? "rgba(245,178,63,0.12)" : "rgba(234,244,238,0.05)",
+          border: `1px solid ${shared ? "rgba(245,178,63,0.45)" : "var(--hair-strong)"}`,
+          borderRadius: 12, padding: "10px 12px",
+        }}
+      >
+        <span
+          style={{
+            width: 9, height: 9, borderRadius: "50%", flexShrink: 0,
+            background: shared ? "var(--accent-amber)" : "var(--ink-faint)",
+          }}
+        />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 800, fontSize: 13.5 }}>
+            {shared ? "Compartiendo" : "Solo tú"}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+            {members.length > 1
+              ? `Miembros: ${members.join(", ")}`
+              : "Los datos son privados (solo tu cuenta)."}
+          </div>
+        </div>
+      </div>
+
+      {/* Paso 1: compartir mi código */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+        <div
+          style={{
+            width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 1,
+            background: "var(--accent-amber)", color: "var(--accent-amber-ink)",
+            fontSize: 12, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          1
+        </div>
+        <div style={{ fontWeight: 700, fontSize: 13.5 }}>Invita a alguien con tu código</div>
+      </div>
       {info?.code && (
-        <div style={{ display: "flex", gap: 8, alignItems: "stretch", marginBottom: 6 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 6, marginLeft: 32 }}>
           <div
             className="fm-num"
             style={{
-              flex: 1,
-              background: "var(--pitch-deep)",
-              border: "1px solid var(--hair-strong)",
-              borderRadius: 10,
-              padding: "8px 12px",
-              fontSize: 22,
-              letterSpacing: "0.14em",
-              display: "flex",
-              alignItems: "center",
+              flex: 1, background: "#0A1812", border: "1px solid rgba(234,244,238,0.28)",
+              borderRadius: 10, padding: "10px 12px", fontSize: 24, letterSpacing: "0.16em",
+              display: "flex", alignItems: "center", justifyContent: "center", color: "#FFFFFF",
             }}
           >
             {info.code.toUpperCase()}
           </div>
-          <button className="fm-btn fm-btn-ghost" onClick={copy}>
-            Copiar
+          <button className="fm-btn fm-btn-primary" onClick={copy} style={{ minWidth: 92 }}>
+            {copied ? <><Check size={16} /> Copiado</> : "Copiar"}
           </button>
         </div>
       )}
-      <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 14, lineHeight: 1.4 }}>
-        Pasa este código a tu compañero para que vea y edite los mismos datos.
+      <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 20, marginLeft: 32, lineHeight: 1.45 }}>
+        Tu compañero debe abrir Ajustes → Equipo compartido y pegar este código para unirse a tus datos.
       </div>
 
-      <span className="fm-label">Unirse a otro equipo</span>
-      <div style={{ display: "flex", gap: 8 }}>
+      {/* Paso 2: unirme con un código */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+        <div
+          style={{
+            width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 1,
+            background: "var(--pitch-mid2)", color: "#FFFFFF",
+            fontSize: 12, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          2
+        </div>
+        <div style={{ fontWeight: 700, fontSize: 13.5 }}>O únete con el código de un compañero</div>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginLeft: 32 }}>
         <input
           className="fm-input"
-          placeholder="Código del compañero"
+          placeholder="Ej: A1B2C3D4"
           value={code}
-          onChange={(e) => setCode(e.target.value)}
-          style={{ flex: 1, textTransform: "uppercase" }}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          style={{ flex: 1, textTransform: "uppercase", letterSpacing: "0.12em" }}
+          maxLength={12}
         />
-        <button className="fm-btn fm-btn-primary" onClick={join} disabled={busy || !code.trim()}>
-          Unirse
+        <button className="fm-btn fm-btn-primary" onClick={join} disabled={busy || !code.trim()} style={{ minWidth: 92 }}>
+          Unirme
         </button>
+      </div>
+      <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginTop: 8, marginLeft: 32, lineHeight: 1.45 }}>
+        Al unirte verás los datos de esa persona (y ella los tuyos).
       </div>
 
       {msg && (
         <div
           style={{
-            fontSize: 12.5,
-            marginTop: 8,
+            fontSize: 12.5, marginTop: 12, marginLeft: 32, fontWeight: 700,
             color: msg.type === "err" ? "var(--card-red)" : "var(--accent-sky)",
           }}
         >
@@ -940,11 +995,11 @@ function ShareSection({ user }) {
       {info && !info.isOwner && (
         <button
           className="fm-btn fm-btn-ghost fm-btn-block"
-          style={{ marginTop: 12 }}
+          style={{ marginTop: 18 }}
           onClick={leave}
           disabled={busy}
         >
-          Salir del equipo compartido
+          <ArrowRight size={16} /> Salir del equipo compartido
         </button>
       )}
     </div>
