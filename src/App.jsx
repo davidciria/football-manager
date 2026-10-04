@@ -2930,12 +2930,20 @@ function PizarraTab({ squad, boards, onChange, showToast, readOnly }) {
         </div>
       )}
 
-      {saveOpen && (
+      {readOnly && (
+        <div style={{ marginTop: 14 }}>
+          <button className="fm-btn fm-btn-ghost fm-btn-block" onClick={() => setListOpen(true)}>
+            <FolderOpen size={16} /> Pizarras guardadas ({boards.length})
+          </button>
+        </div>
+      )}
+
+      {saveOpen && !readOnly && (
         <SaveBoardSheet initialName={boardId ? boardName : ""} onSave={saveBoard} onClose={() => setSaveOpen(false)} />
       )}
 
       {listOpen && (
-        <BoardListSheet boards={boards} onLoad={loadBoard} onDelete={deleteBoard} onClose={() => setListOpen(false)} />
+        <BoardListSheet boards={boards} onLoad={loadBoard} onDelete={deleteBoard} onClose={() => setListOpen(false)} readOnly={readOnly} />
       )}
 
       {clearConfirm && (
@@ -2990,7 +2998,7 @@ function SaveBoardSheet({ initialName, onSave, onClose }) {
   );
 }
 
-function BoardListSheet({ boards, onLoad, onDelete, onClose }) {
+function BoardListSheet({ boards, onLoad, onDelete, onClose, readOnly }) {
   return (
     <div className="fm-overlay" onClick={onClose}>
       <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
@@ -3000,14 +3008,16 @@ function BoardListSheet({ boards, onLoad, onDelete, onClose }) {
           <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="fm-sheet-body">
-          {boards.length === 0 && <div className="fm-empty-text" style={{ padding: "16px 0" }}>Aún no has guardado ninguna pizarra.</div>}
+          {boards.length === 0 && <div className="fm-empty-text" style={{ padding: "16px 0" }}>Aún no hay pizarras guardadas.</div>}
           {boards.map((b) => (
             <div key={b.id} className="fm-picker-row">
               <div style={{ flex: 1 }} onClick={() => onLoad(b)}>
                 <div style={{ fontWeight: 700, fontSize: 14.5 }}>{b.name}</div>
                 <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{b.strokes?.length || 0} elementos</div>
               </div>
-              <button className="fm-iconbtn" onClick={() => onDelete(b.id)}><Trash2 size={16} color="var(--card-red)" /></button>
+              {!readOnly && (
+                <button className="fm-iconbtn" onClick={() => onDelete(b.id)}><Trash2 size={16} color="var(--card-red)" /></button>
+              )}
             </div>
           ))}
         </div>
