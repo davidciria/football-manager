@@ -315,3 +315,47 @@ export function finalizeIntervals(match, finalMinute) {
   });
   return { ...match, intervals, lineup };
 }
+
+/* ---------------------------------------------------------------------------
+   Temporizador (puro, testeable).
+--------------------------------------------------------------------------- */
+function pad2(n) {
+  return String(Math.max(0, Math.floor(n))).padStart(2, "0");
+}
+
+/* Segundos transcurridos en cada parte, incluyendo el tramo en curso. */
+export function halfElapsedSeconds(match, now) {
+  const h1 = (match.h1Seconds || 0) + (match.phase === "h1" && match.runningSince ? (now - match.runningSince) / 1000 : 0);
+  const h2 = (match.h2Seconds || 0) + (match.phase === "h2" && match.runningSince ? (now - match.runningSince) / 1000 : 0);
+  return { h1, h2 };
+}
+
+/* Minuto "global" (1..). La 2ª parte parte del minuto halfMin. */
+export function currentMinute(match, now) {
+  const { h1, h2 } = halfElapsedSeconds(match, now);
+  const halfMin = match.halfMinutes || 25;
+  if (match.phase === "h1") return Math.floor(h1 / 60) + 1;
+  if (match.phase === "descanso") return halfMin;
+  if (match.phase === "h2" || match.phase === "finalizado") return halfMin + Math.floor(h2 / 60) + 1;
+  return 0;
+}
+
+/* Reloj mostrado. La 2ª parte arranca en halfMin:00 (el descuento de la 1ª
+   parte no se arrastra); el descuento se indica aparte con "+N'". */
+export function timerDisplay(match, now) {
+  const { h1, h2 } = halfElapsedSeconds(match, now);
+  const halfMin = match.halfMinutes || 25;
+  const halfSec = halfMin * 60;
+  if (match.phase === "h1") {
+    const over = h1 > halfSec;
+    const shown = over ? h1 - halfSec : h1;
+    return { main: `${pad2(Math.floor(shown / 60) + (over ? halfMin : 0))}:${pad2(shown % 60)}`, added: over ? `+${Math.floor((h1 - halfSec) / 60) + 1}'` : null };
+  }
+  if (match.phase === "descanso") return { main: `${pad2(halfMin)}:00`, added: null };
+  if (match.phase === "h2" || match.phase === "finalizado") {
+    const over = h2 > halfSec;
+    const shown = over ? h2 - halfSec : h2;
+    return { main: `${pad2(halfMin + Math.floor(shown / 60) + (over ? halfMin : 0))}:${pad2(shown % 60)}`, added: over ? `+${Math.floor((h2 - halfSec) / 60) + 1}'` : null };
+  }
+  return { main: "00:00", added: null };
+}

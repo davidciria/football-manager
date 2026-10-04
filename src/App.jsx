@@ -13,7 +13,7 @@ import {
   FORMATIONS, ROLE_LABEL, ROLE_SHORT,
   logCard, applySubstitution, changeFormation, subOrdering,
   initialLineupOf, outPlayers, canFillEmptySlot, onFieldCount, redCount, yellowCount,
-  finalizeIntervals, eventsByMinute,
+  finalizeIntervals, eventsByMinute, halfElapsedSeconds, currentMinute, timerDisplay,
 } from "./matchLogic.js";
 
 /* ============================================================================
@@ -454,10 +454,6 @@ function uid(prefix) {
   return `${prefix}_${Date.now().toString(36)}${_uidCounter}`;
 }
 
-function pad2(n) {
-  return String(Math.max(0, Math.floor(n))).padStart(2, "0");
-}
-
 function initials(name) {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
@@ -491,41 +487,8 @@ function vibrate(ms) {
   }
 }
 
-/* ---- Timer math ---- */
-function halfElapsedSeconds(match, now) {
-  const h1 = match.h1Seconds + (match.phase === "h1" && match.runningSince ? (now - match.runningSince) / 1000 : 0);
-  const h2 = match.h2Seconds + (match.phase === "h2" && match.runningSince ? (now - match.runningSince) / 1000 : 0);
-  return { h1, h2 };
-}
-
-function currentMinute(match, now) {
-  const { h1, h2 } = halfElapsedSeconds(match, now);
-  const halfMin = match.halfMinutes || 25;
-  if (match.phase === "h1") return Math.floor(h1 / 60) + 1;
-  if (match.phase === "descanso") return halfMin;
-  if (match.phase === "h2" || match.phase === "finalizado") return halfMin + Math.floor(h2 / 60) + 1;
-  return 0;
-}
-
-function timerDisplay(match, now) {
-  const { h1, h2 } = halfElapsedSeconds(match, now);
-  const halfMin = match.halfMinutes || 25;
-  const halfSec = halfMin * 60;
-  if (match.phase === "h1") {
-    const over = h1 > halfSec;
-    const shown = over ? h1 - halfSec : h1;
-    return { main: `${pad2(Math.floor(shown / 60) + (over ? halfMin : 0))}:${pad2(shown % 60)}`, added: over ? `+${Math.floor((h1 - halfSec) / 60) + 1}'` : null };
-  }
-  if (match.phase === "descanso") return { main: `${pad2(halfMin)}:00`, added: null };
-  if (match.phase === "h2" || match.phase === "finalizado") {
-    const over = h2 > halfSec;
-    const base = halfMin;
-    const shown = over ? h2 - halfSec : h2;
-    return { main: `${pad2(base + Math.floor(shown / 60) + (over ? halfMin : 0))}:${pad2(shown % 60)}`, added: over ? `+${Math.floor((h2 - halfSec) / 60) + 1}'` : null };
-  }
-  return { main: "00:00", added: null };
-}
-
+/* ---- Timer math ---- (halfElapsedSeconds, currentMinute y timerDisplay
+   viven en matchLogic.js para poder testearse) */
 function phaseLabel(phase) {
   return { pre: "Antes del partido", h1: "1ª parte", descanso: "Descanso", h2: "2ª parte", finalizado: "Finalizado" }[phase] || "";
 }
@@ -1553,6 +1516,7 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
   const togglePlay = () => {
     if (activeMatch.phase === "descanso") {
       mutateMatch((m) => ({ ...m, phase: "h2", runningSince: Date.now() }));
+      setNow(Date.now());
       return;
     }
     mutateMatch((m) => {
@@ -1563,6 +1527,7 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
       }
       return { ...m, runningSince: Date.now() };
     });
+    setNow(Date.now());
   };
 
   const goToHalftime = () => {
@@ -1570,6 +1535,7 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
       const elapsed = m.runningSince ? (Date.now() - m.runningSince) / 1000 : 0;
       return { ...m, phase: "descanso", h1Seconds: m.h1Seconds + elapsed, runningSince: null };
     });
+    setNow(Date.now());
     vibrate(15);
   };
 

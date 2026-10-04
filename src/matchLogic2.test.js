@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { eventsByMinute, cardTotals, logCard } from "./matchLogic.js";
+import { eventsByMinute, cardTotals, logCard, halfElapsedSeconds, currentMinute, timerDisplay } from "./matchLogic.js";
 
 function base() {
   return {
@@ -64,5 +64,41 @@ describe("métricas de tarjetas", () => {
     expect(t.p2.amarillas).toBe(2);
     expect(t.p2.azules).toBe(1);
     expect(t.p2.sanciones).toBe(3);
+  });
+});
+
+describe("temporizador", () => {
+  const MS = 1000;
+
+  it("cuenta hacia delante mientras corre (1ª parte)", () => {
+    const m = { phase: "h1", halfMinutes: 25, h1Seconds: 0, h2Seconds: 0, runningSince: 1000 };
+    expect(timerDisplay(m, 1000 + 10 * MS).main).toBe("00:10");
+    expect(currentMinute(m, 1000 + 10 * MS)).toBe(1);
+  });
+
+  it("al pausar congela el tiempo y al reanudar NO retrocede", () => {
+    // Corre 10s y se pausa (h1Seconds pasa a 10, runningSince null)
+    const paused = { phase: "h1", halfMinutes: 25, h1Seconds: 10, h2Seconds: 0, runningSince: null };
+    expect(timerDisplay(paused, 999999).main).toBe("00:10");
+    // Reanuda 5s despues del momento en que se mostraba el reloj
+    const resumed = { ...paused, runningSince: 5000 };
+    // justo al reanudar, sigue en 00:10 (no baja)
+    expect(timerDisplay(resumed, 5000).main).toBe("00:10");
+    // 3s despues del reanudado -> 00:13
+    expect(timerDisplay(resumed, 5000 + 3 * MS).main).toBe("00:13");
+  });
+
+  it("la 2ª parte arranca en 25:00 aunque la 1ª tuviera descuento", () => {
+    const m = { phase: "h2", halfMinutes: 25, h1Seconds: 27.5 * 60, h2Seconds: 0, runningSince: 1000 };
+    expect(timerDisplay(m, 1000).main).toBe("25:00");
+    expect(timerDisplay(m, 1000 + 30 * MS).main).toBe("25:30");
+    expect(currentMinute(m, 1000 + 30 * MS)).toBe(26);
+  });
+
+  it("muestra el descuento con +N' al pasarse de la parte", () => {
+    const m = { phase: "h1", halfMinutes: 25, h1Seconds: 26 * 60 + 20, h2Seconds: 0, runningSince: null };
+    const t = timerDisplay(m, 0);
+    expect(t.main).toBe("26:20");
+    expect(t.added).toBe("+2'");
   });
 });
