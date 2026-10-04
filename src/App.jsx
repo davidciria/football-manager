@@ -535,7 +535,7 @@ function eventVisual(type) {
    ROOT APP
 ============================================================================ */
 
-export default function App({ user = null, team = null, onLogout = null, onSwitchTeam = null }) {
+export default function App({ user = null, team = null, onLogout = null, onSwitchTeam = null, onRenameTeam = null }) {
   const readOnly = team?.role === "viewer";
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("partido");
@@ -745,6 +745,7 @@ export default function App({ user = null, team = null, onLogout = null, onSwitc
           readOnly={readOnly}
           onLogout={onLogout}
           onSwitchTeam={onSwitchTeam}
+          onRenameTeam={onRenameTeam}
           onSave={(s) => { updateSettings(s); setSettingsOpen(false); showToast("Ajustes guardados"); }}
           onClose={() => setSettingsOpen(false)}
         />
@@ -765,8 +766,7 @@ function AppHeader({ settings, tab, team, onOpenSettings }) {
     <div className="fm-header">
       <div style={{ minWidth: 0 }}>
         <h1>{titles[tab]}</h1>
-        <div className="fm-sub">{team ? team.name : settings.teamName}</div>
-      </div>
+        <div className="fm-sub">{team ? team.name : settings.teamName}</div>      </div>
       <button className="fm-iconbtn" onClick={onOpenSettings} aria-label="Ajustes">
         <Settings size={18} />
       </button>
@@ -803,9 +803,19 @@ function TabBar({ tab, setTab, hasActiveMatch }) {
    SETTINGS MODAL
 ============================================================================ */
 
-function SettingsModal({ settings, onSave, onClose, user, team, readOnly, onLogout, onSwitchTeam }) {
-  const [teamName, setTeamName] = useState(settings.teamName);
+function SettingsModal({ settings, onSave, onClose, user, team, readOnly, onLogout, onSwitchTeam, onRenameTeam }) {
   const [halfMinutes, setHalfMinutes] = useState(settings.halfMinutes);
+  const [name, setName] = useState(team ? team.name : settings.teamName);
+  const [renamed, setRenamed] = useState(false);
+  const canRename = !!onRenameTeam;
+
+  const doRename = async () => {
+    const v = name.trim();
+    if (!v || !canRename) return;
+    const ok = await onRenameTeam(v);
+    if (ok) setRenamed(true);
+  };
+
   return (
     <div className="fm-overlay" onClick={onClose}>
       <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
@@ -824,6 +834,14 @@ function SettingsModal({ settings, onSave, onClose, user, team, readOnly, onLogo
                   {{ owner: "Propietario", editor: "Editor", viewer: "Solo lectura" }[team.role] || team.role}
                 </span>
               </div>
+              {canRename && (
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  <input className="fm-input" value={name} onChange={(e) => { setName(e.target.value); setRenamed(false); }} maxLength={40} style={{ flex: 1 }} />
+                  <button className="fm-btn fm-btn-ghost" onClick={doRename} disabled={!name.trim() || name.trim() === team.name}>
+                    {renamed ? <><Check size={16} /> Hecho</> : "Renombrar"}
+                  </button>
+                </div>
+              )}
               {onSwitchTeam && (
                 <button className="fm-btn fm-btn-ghost fm-btn-block" onClick={() => onSwitchTeam()}>
                   <ArrowLeftRight size={16} /> Cambiar de equipo
@@ -831,10 +849,6 @@ function SettingsModal({ settings, onSave, onClose, user, team, readOnly, onLogo
               )}
             </div>
           )}
-          <div style={{ marginBottom: 16 }}>
-            <span className="fm-label">Nombre del equipo (mostrado en la app)</span>
-            <input className="fm-input" value={teamName} onChange={(e) => setTeamName(e.target.value)} disabled={readOnly} />
-          </div>
           <div style={{ marginBottom: 8 }}>
             <span className="fm-label">Duración de cada parte (minutos)</span>
             <input
@@ -868,7 +882,7 @@ function SettingsModal({ settings, onSave, onClose, user, team, readOnly, onLogo
         </div>
         {!readOnly && (
           <div className="fm-sheet-actions">
-            <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => onSave({ teamName: teamName.trim() || "Mi Equipo", halfMinutes: halfMinutes || 25 })}>
+            <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => onSave({ halfMinutes: halfMinutes || 25 })}>
               <Check size={17} /> Guardar
             </button>
           </div>

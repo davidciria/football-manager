@@ -103,11 +103,33 @@ function Root() {
     setStatus("teams");
   };
 
+  const renameTeam = async (newName) => {
+    const res = await fetch("/api/teams/" + encodeURIComponent(team.id), {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (res.ok) {
+      setTeam((t) => (t ? { ...t, name: newName } : t));
+      return true;
+    }
+    return false;
+  };
+
   if (status === "loading") return <Splash />;
   if (status === "anon") return <AuthScreen onAuthed={handleAuthed} />;
   if (status === "teams")
     return <TeamsScreen user={user} onOpenTeam={openTeam} onLogout={handleLogout} />;
-  return <App user={user} team={team} onLogout={handleLogout} onSwitchTeam={backToTeams} />;
+  return (
+    <App
+      user={user}
+      team={team}
+      onLogout={handleLogout}
+      onSwitchTeam={backToTeams}
+      onRenameTeam={team?.role === "owner" ? renameTeam : null}
+    />
+  );
 }
 
 createRoot(document.getElementById("root")).render(<Root />);

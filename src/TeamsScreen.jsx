@@ -36,6 +36,18 @@ const CSS = `
 }
 .fm-team-name{font-weight:800; font-size:16.5px; line-height:1.1;}
 .fm-team-meta{font-size:12px; color:var(--soft); margin-top:3px;}
+.fm-team-members{display:flex; flex-wrap:wrap; gap:6px; margin-top:9px;}
+.fm-member-chip{
+  display:inline-flex; align-items:center; gap:6px; max-width:100%;
+  background:rgba(234,244,238,0.06); border:1px solid var(--hair);
+  border-radius:100px; padding:4px 9px; font-size:11px; color:#DCEFE4;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.fm-member-role{font-size:9.5px; font-weight:800; color:var(--faint); text-transform:uppercase; letter-spacing:0.03em;}
+.fm-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+.fm-dot-owner{background:var(--amber);}
+.fm-dot-editor{background:var(--sky);}
+.fm-dot-viewer{background:var(--faint);}
 .fm-role{
   display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:800; letter-spacing:0.03em;
   padding:3px 9px; border-radius:100px; text-transform:uppercase;
@@ -188,12 +200,23 @@ export default function TeamsScreen({ user, onOpenTeam, onLogout }) {
           <button key={t.id} className="fm-team-card" onClick={() => onOpenTeam(t.id)}>
             <div className="fm-team-badge">{t.name.slice(0, 1).toUpperCase()}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="fm-team-name">{t.name}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div className="fm-team-name">{t.name}</div>
+                <span className={`fm-role fm-role-${t.role}`}>{ROLE_LABEL[t.role]}</span>
+              </div>
               <div className="fm-team-meta">
                 {t.members} {t.members === 1 ? "miembro" : "miembros"}
               </div>
+              <div className="fm-team-members">
+                {(t.membersList || []).map((m) => (
+                  <span key={m.email} className="fm-member-chip">
+                    <span className={`fm-dot fm-dot-${m.role}`} />
+                    {m.email}
+                    <span className="fm-member-role">{m.isOwner ? "Owner" : ROLE_LABEL[m.role]}</span>
+                  </span>
+                ))}
+              </div>
             </div>
-            <span className={`fm-role fm-role-${t.role}`}>{ROLE_LABEL[t.role]}</span>
           </button>
         ))}
 

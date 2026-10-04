@@ -156,13 +156,30 @@ async function listTeams(env, userId) {
   )
     .bind(userId)
     .all();
-  return results.map((r) => ({
-    id: r.id,
-    name: r.name,
-    role: r.role,
-    isOwner: r.owner_id === userId,
-    members: r.members,
-  }));
+
+  const teams = [];
+  for (const r of results) {
+    const { results: mem } = await env.DB.prepare(
+      `SELECT u.email AS email, tm.role AS role, tm.user_id AS user_id
+       FROM team_members tm JOIN users u ON u.id = tm.user_id
+       WHERE tm.team_id = ? ORDER BY tm.created_at`
+    )
+      .bind(r.id)
+      .all();
+    teams.push({
+      id: r.id,
+      name: r.name,
+      role: r.role,
+      isOwner: r.owner_id === userId,
+      members: r.members,
+      membersList: mem.map((x) => ({
+        email: x.email,
+        role: x.role,
+        isOwner: x.user_id === r.owner_id,
+      })),
+    });
+  }
+  return teams;
 }
 
 async function memberEmails(env, teamId) {
