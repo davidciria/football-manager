@@ -11,6 +11,9 @@ import {
   onFieldCount,
   redCount,
   yellowCount,
+  finalizeIntervals,
+  eventsByMinute,
+  cardTotals,
 } from "./matchLogic.js";
 
 const SQUAD = Array.from({ length: 10 }, (_, i) => ({
@@ -186,5 +189,45 @@ describe("casos límite", () => {
     const m = logCard(makeMatch(), "p3", "roja", 15).match;
     const { bench } = subOrdering(m, SQUAD, 20);
     expect(bench.some((b) => b.player.id === "p3")).toBe(false);
+  });
+});
+
+describe("finalización del partido", () => {
+  it("cierra el intervalo del expulsado en el minuto de la tarjeta", () => {
+    const m = logCard(makeMatch(), "p2", "roja", 20).match;
+    const fin = finalizeIntervals(m, 62);
+    const arr = fin.intervals.p2;
+    expect(arr[arr.length - 1].end).toBe(20);
+  });
+
+  it("el expulsado por azul también se cierra en su minuto", () => {
+    let m = makeMatch();
+    m = logCard(m, "p4", "amarilla", 10).match;
+    m = logCard(m, "p4", "amarilla", 38).match;
+    const fin = finalizeIntervals(m, 62);
+    const arr = fin.intervals.p4;
+    expect(arr[arr.length - 1].end).toBe(38);
+  });
+
+  it("no cuenta minutos posteriores a la expulsión", () => {
+    const m = logCard(makeMatch(), "p2", "roja", 20).match;
+    const fin = finalizeIntervals(m, 60);
+    const total = fin.intervals.p2.reduce((a, iv) => a + (iv.end - iv.start), 0);
+    expect(total).toBe(20);
+  });
+
+  it("los no expulsados se cierran en el minuto final", () => {
+    const m = makeMatch();
+    const fin = finalizeIntervals(m, 62);
+    expect(fin.intervals.p1[fin.intervals.p1.length - 1].end).toBe(62);
+  });
+
+  it("garantiza que ningún expulsado quede en el lineup", () => {
+    let m = makeMatch();
+    m = logCard(m, "p3", "roja", 15).match;
+    // Forzamos su vuelta al campo (dato corrupto) para comprobar la limpieza.
+    m = { ...m, lineup: { ...m.lineup, d2: "p3" } };
+    const fin = finalizeIntervals(m, 60);
+    expect(Object.values(fin.lineup)).not.toContain("p3");
   });
 });

@@ -13,6 +13,7 @@ import {
   FORMATIONS, ROLE_LABEL, ROLE_SHORT,
   logCard, applySubstitution, changeFormation, subOrdering,
   initialLineupOf, outPlayers, canFillEmptySlot, onFieldCount, redCount, yellowCount,
+  finalizeIntervals, eventsByMinute,
 } from "./matchLogic.js";
 
 /* ============================================================================
@@ -1618,18 +1619,16 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onUndo, onFinishMatch, onD
 
   const handleFinish = (rivalGoalsFinal, notes, mvpVotes) => {
     const min = currentMinute(activeMatch, Date.now());
-    const intervals = { ...activeMatch.intervals };
-    Object.keys(intervals).forEach((pid) => {
-      intervals[pid] = intervals[pid].map((iv) => (iv.end == null ? { ...iv, end: min } : iv));
-    });
     let h1Seconds = activeMatch.h1Seconds;
     let h2Seconds = activeMatch.h2Seconds;
     if (activeMatch.runningSince) {
       const elapsed = (Date.now() - activeMatch.runningSince) / 1000;
       if (activeMatch.phase === "h1") h1Seconds += elapsed; else h2Seconds += elapsed;
     }
+    const finalized = finalizeIntervals(activeMatch, min);
     const finalMatch = {
-      ...activeMatch, intervals, h1Seconds, h2Seconds, runningSince: null,
+      ...finalized, h1Seconds, h2Seconds, runningSince: null,
+      initialLineup: finalized.initialLineup || activeMatch.initialLineup || initialLineupOf(activeMatch),
       phase: "finalizado", rivalGoals: rivalGoalsFinal, notes, mvpVotes: mvpVotes || {}, finalMinute: min,
     };
     onFinishMatch(finalMatch);
@@ -2347,7 +2346,7 @@ function MatchDetailSheet({ match, playerById, onUpdateVotes, onDelete, onClose 
           </div>
 
           <span className="fm-label">Cronología</span>
-          {match.events.map((ev) => <TimelineRow key={ev.id} ev={ev} playerById={playerById} />)}
+          {eventsByMinute(match.events).map((ev) => <TimelineRow key={ev.id} ev={ev} playerById={playerById} />)}
           {match.events.length === 0 && <div className="fm-empty-text" style={{ padding: "8px 0 18px" }}>Sin eventos registrados.</div>}
 
           <div style={{ marginTop: 8, marginBottom: 8 }}>
@@ -2395,6 +2394,7 @@ function TemporadaTab({ history, squad }) {
   const emptyStat = (player) => ({
     player, partidos: 0, goles: 0, asistencias: 0, paradas: 0, amarillas: 0, rojas: 0,
     minutos: 0, minutosPorRol: { POR: 0, DEF: 0, MED: 0, DEL: 0 }, mvpAwards: 0, mvpVotesTotal: 0,
+    amarillas: 0, rojas: 0, azules: 0,
   });
 
   const stats = useMemo(() => {
@@ -2424,6 +2424,7 @@ function TemporadaTab({ history, squad }) {
         else if (ev.type === "parada") map[ev.playerId].paradas += 1;
         else if (ev.type === "amarilla") map[ev.playerId].amarillas += 1;
         else if (ev.type === "roja") map[ev.playerId].rojas += 1;
+        else if (ev.type === "azul") map[ev.playerId].azules += 1;
       });
       const votes = m.mvpVotes || {};
       const voteVals = Object.values(votes);
@@ -2436,7 +2437,9 @@ function TemporadaTab({ history, squad }) {
         });
       }
     });
-    return Object.values(map).sort((a, b) => b.goles - a.goles || b.asistencias - a.asistencias);
+    return Object.values(map)
+      .map((s) => ({ ...s, sanciones: s.amarillas + s.rojas + s.azules }))
+      .sort((a, b) => b.goles - a.goles || b.asistencias - a.asistencias);
   }, [history, squad, playerById]);
 
   const record = useMemo(() => {
@@ -2490,7 +2493,7 @@ function TemporadaTab({ history, squad }) {
 
       <span className="fm-label">Ranking</span>
       <div className="fm-segmented" style={{ marginBottom: 12 }}>
-        {[["goles", "Goles"], ["asistencias", "Asist."], ["minutos", "Minutos"], ["paradas", "Paradas"], ["mvpAwards", "MVP"]].map(([k, l]) => (
+        {[["goles", "Goles"], ["asistencias", "Asist."], ["minutos", "Minutos"], ["paradas", "Paradas"], ["mvpAwards", "MVP"], ["sanciones", "Tarjetas"]].map(([k, l]) => (
           <button key={k} className={metric === k ? "active" : ""} onClick={() => setMetric(k)}>{l}</button>
         ))}
       </div>
@@ -2555,12 +2558,13 @@ function TemporadaTab({ history, squad }) {
               <th className="num">Par.</th>
               <th className="num">TA</th>
               <th className="num">TR</th>
+              <th className="num">AZ</th>
               <th className="num">Min</th>
               <th className="num">MVP</th>
             </tr>
           </thead>
           <tbody>
-            {stats.filter((s) => s.partidos > 0 || s.goles || s.asistencias || s.paradas).map((s) => (
+            {stats.filter((s) => s.partidos > 0 || s.goles || s.asistencias || s.paradas || s.amarillas || s.rojas || s.azules).map((s) => (
               <tr key={s.player.id || s.player.name}>
                 <td>{s.player.name}</td>
                 <td className="num">{s.partidos}</td>
@@ -2569,6 +2573,7 @@ function TemporadaTab({ history, squad }) {
                 <td className="num">{s.paradas}</td>
                 <td className="num">{s.amarillas}</td>
                 <td className="num">{s.rojas}</td>
+                <td className="num" style={{ color: s.azules > 0 ? "var(--accent-sky)" : undefined }}>{s.azules}</td>
                 <td className="num">{s.minutos}</td>
                 <td className="num">{s.mvpAwards > 0 ? `★${s.mvpAwards}` : "–"}</td>
               </tr>

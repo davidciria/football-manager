@@ -228,6 +228,32 @@ export function changeFormation(match, formationKey, minute) {
   return { ...match, formation: formationKey, lineup: result, intervals, events };
 }
 
+/* Eventos de un partido ordenados por minuto (estable: conserva el orden de
+   inserción cuando el minuto coincide). */
+export function eventsByMinute(events) {
+  return (events || [])
+    .map((ev, i) => ({ ev, i }))
+    .sort((a, b) => a.ev.minute - b.ev.minute || a.i - b.i)
+    .map((x) => x.ev);
+}
+
+/* Estadísticas de tarjetas por jugador a partir de los eventos. */
+export function cardTotals(events) {
+  const map = {};
+  for (const ev of events || []) {
+    if (!ev.playerId) continue;
+    if (!map[ev.playerId]) map[ev.playerId] = { amarillas: 0, rojas: 0, azules: 0 };
+    if (ev.type === "amarilla") map[ev.playerId].amarillas += 1;
+    else if (ev.type === "roja") map[ev.playerId].rojas += 1;
+    else if (ev.type === "azul") map[ev.playerId].azules += 1;
+  }
+  for (const pid of Object.keys(map)) {
+    const t = map[pid];
+    t.sanciones = t.amarillas + t.rojas + t.azules;
+  }
+  return map;
+}
+
 /* Orden de cambios: quién lleva más tiempo en el campo y quién más en el banquillo.
    - field: ordenado por más tiempo continuo en el campo (primero el que más).
    - bench: ordenado por más tiempo esperando en el banquillo (primero el que más). */
@@ -251,4 +277,41 @@ export function subOrdering(match, squad, minute) {
   field.sort((a, b) => a.since - b.since);
   bench.sort((a, b) => a.since - b.since);
   return { field, bench };
+}
+
+/* Minuto en que un jugador fue expulsado (roja o azul), o null. */
+export function ejectionMinute(match, pid) {
+  const evs = (match.events || []).filter(
+    (e) => (e.type === "roja" || e.type === "azul") && e.playerId === pid
+  );
+  if (!evs.length) return null;
+  return Math.min(...evs.map((e) => e.minute));
+}
+
+/* Cierre de un partido: sella todos los intervalos abiertos.
+   - Los expulsados (roja/azul) se cierran en el minuto exacto de su tarjeta,
+     de modo que no cuentan minutos posteriores a la expulsión.
+   - El resto se cierra en el minuto final.
+   También garantiza que un expulsado no quede en el lineup final. */
+export function finalizeIntervals(match, finalMinute) {
+  const intervals = { ...(match.intervals || {}) };
+  const ejectionCache = {};
+  Object.keys(intervals).forEach((pid) => {
+    let ej = ejectionCache[pid];
+    if (ej === undefined) {
+      ej = ejectionMinute(match, pid);
+      ejectionCache[pid] = ej;
+    }
+    intervals[pid] = (intervals[pid] || []).map((iv) => {
+      if (iv.end != null) return iv;
+      const end = ej != null && ej < finalMinute ? ej : finalMinute;
+      return { ...iv, end };
+    });
+  });
+  const out = outPlayers(match);
+  const lineup = { ...(match.lineup || {}) };
+  Object.keys(lineup).forEach((slotId) => {
+    if (lineup[slotId] && out.has(lineup[slotId])) delete lineup[slotId];
+  });
+  return { ...match, intervals, lineup };
 }
