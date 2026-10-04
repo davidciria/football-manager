@@ -8,6 +8,7 @@
     "dev:worker": "npm run build && wrangler dev",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "deploy": "npm run build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply football-manager-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply football-manager-db --remote"
@@ -21,6 +22,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^5.4.11",
+    "vitest": "^2.1.9",
     "wrangler": "^3.99.0"
   }
 }

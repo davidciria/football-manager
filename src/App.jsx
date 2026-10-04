@@ -9,6 +9,11 @@ import {
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
+import {
+  FORMATIONS, ROLE_LABEL, ROLE_SHORT,
+  logCard, applySubstitution, changeFormation, subOrdering,
+  initialLineupOf, outPlayers, canFillEmptySlot, onFieldCount, redCount, yellowCount,
+} from "./matchLogic.js";
 
 /* ============================================================================
    DESIGN TOKENS
@@ -387,66 +392,6 @@ const CSS = `
    CONSTANTS
 ============================================================================ */
 
-const ROLE_LABEL = { POR: "Portero", DEF: "Defensa", MED: "Centrocampista", DEL: "Delantero" };
-const ROLE_SHORT = { POR: "POR", DEF: "DEF", MED: "MED", DEL: "DEL" };
-
-const FORMATIONS = {
-  "1-2-3-1": {
-    label: "1-2-3-1",
-    slots: [
-      { id: "gk", role: "POR", x: 50, y: 90 },
-      { id: "d1", role: "DEF", x: 28, y: 70 }, { id: "d2", role: "DEF", x: 72, y: 70 },
-      { id: "m1", role: "MED", x: 18, y: 45 }, { id: "m2", role: "MED", x: 50, y: 45 }, { id: "m3", role: "MED", x: 82, y: 45 },
-      { id: "f1", role: "DEL", x: 50, y: 17 },
-    ],
-  },
-  "1-3-2-1": {
-    label: "1-3-2-1",
-    slots: [
-      { id: "gk", role: "POR", x: 50, y: 90 },
-      { id: "d1", role: "DEF", x: 18, y: 70 }, { id: "d2", role: "DEF", x: 50, y: 70 }, { id: "d3", role: "DEF", x: 82, y: 70 },
-      { id: "m1", role: "MED", x: 30, y: 45 }, { id: "m2", role: "MED", x: 70, y: 45 },
-      { id: "f1", role: "DEL", x: 50, y: 17 },
-    ],
-  },
-  "1-4-1-1": {
-    label: "1-4-1-1",
-    slots: [
-      { id: "gk", role: "POR", x: 50, y: 90 },
-      { id: "d1", role: "DEF", x: 13, y: 70 }, { id: "d2", role: "DEF", x: 38, y: 70 }, { id: "d3", role: "DEF", x: 62, y: 70 }, { id: "d4", role: "DEF", x: 87, y: 70 },
-      { id: "m1", role: "MED", x: 50, y: 45 },
-      { id: "f1", role: "DEL", x: 50, y: 17 },
-    ],
-  },
-  "1-2-2-2": {
-    label: "1-2-2-2",
-    slots: [
-      { id: "gk", role: "POR", x: 50, y: 90 },
-      { id: "d1", role: "DEF", x: 28, y: 70 }, { id: "d2", role: "DEF", x: 72, y: 70 },
-      { id: "m1", role: "MED", x: 28, y: 45 }, { id: "m2", role: "MED", x: 72, y: 45 },
-      { id: "f1", role: "DEL", x: 28, y: 17 }, { id: "f2", role: "DEL", x: 72, y: 17 },
-    ],
-  },
-  "1-3-1-2": {
-    label: "1-3-1-2",
-    slots: [
-      { id: "gk", role: "POR", x: 50, y: 90 },
-      { id: "d1", role: "DEF", x: 18, y: 70 }, { id: "d2", role: "DEF", x: 50, y: 70 }, { id: "d3", role: "DEF", x: 82, y: 70 },
-      { id: "m1", role: "MED", x: 50, y: 45 },
-      { id: "f1", role: "DEL", x: 30, y: 17 }, { id: "f2", role: "DEL", x: 70, y: 17 },
-    ],
-  },
-  "1-2-1-3": {
-    label: "1-2-1-3",
-    slots: [
-      { id: "gk", role: "POR", x: 50, y: 90 },
-      { id: "d1", role: "DEF", x: 28, y: 70 }, { id: "d2", role: "DEF", x: 72, y: 70 },
-      { id: "m1", role: "MED", x: 50, y: 45 },
-      { id: "f1", role: "DEL", x: 18, y: 17 }, { id: "f2", role: "DEL", x: 50, y: 17 }, { id: "f3", role: "DEL", x: 82, y: 17 },
-    ],
-  },
-};
-
 const DEFAULT_SQUAD = [
   { id: "p1", name: "Jugador 1", number: 1, guest: false },
   { id: "p2", name: "Jugador 2", number: 2, guest: false },
@@ -597,7 +542,9 @@ function eventVisual(type) {
     case "parada": return { icon: Hand, bg: "rgba(143,182,162,0.18)", color: "var(--pitch-line)" };
     case "amarilla": return { icon: null, bg: "rgba(245,197,24,0.15)", color: "var(--card-yellow)" };
     case "roja": return { icon: null, bg: "rgba(228,72,60,0.15)", color: "var(--card-red)" };
+    case "azul": return { icon: null, bg: "rgba(79,169,232,0.18)", color: "var(--accent-sky)" };
     case "cambio": return { icon: ArrowLeftRight, bg: "rgba(234,244,238,0.10)", color: "var(--ink-soft)" };
+    case "formacion": return { icon: Shirt, bg: "rgba(234,244,238,0.10)", color: "var(--ink-soft)" };
     case "gol_rival": return { icon: Flag, bg: "rgba(228,72,60,0.15)", color: "var(--card-red)" };
     default: return { icon: CircleDot, bg: "rgba(234,244,238,0.10)", color: "var(--ink-soft)" };
   }
@@ -1518,6 +1465,8 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onUndo, onFinishMatch, onD
   const [finishOpen, setFinishOpen] = useState(false);
   const [discardConfirm, setDiscardConfirm] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [formationOpen, setFormationOpen] = useState(false);
+  const [orderOpen, setOrderOpen] = useState(false);
 
   useEffect(() => {
     if (activeMatch.phase !== "h1" && activeMatch.phase !== "h2") return;
@@ -1529,8 +1478,13 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onUndo, onFinishMatch, onD
   const formation = FORMATIONS[activeMatch.formation];
   const playerById = useMemo(() => Object.fromEntries(squad.map((p) => [p.id, p])), [squad]);
   const assignedIds = new Set(Object.values(activeMatch.lineup));
-  const bench = squad.filter((p) => !assignedIds.has(p.id));
+  const outSet = useMemo(() => outPlayers(activeMatch), [activeMatch]);
+  const bench = squad.filter((p) => !assignedIds.has(p.id) && !outSet.has(p.id));
+  const suspended = squad.filter((p) => outSet.has(p.id));
   const minute = currentMinute(activeMatch, now);
+  const onField = onFieldCount(activeMatch);
+  const sentOff = redCount(activeMatch);
+  const ordering = useMemo(() => subOrdering(activeMatch, squad, minute), [activeMatch, squad, minute]);
   const timer = timerDisplay(activeMatch, now);
   const goalsFor = activeMatch.events.filter((e) => e.type === "gol").length;
   const isRunning = !!activeMatch.runningSince && (activeMatch.phase === "h1" || activeMatch.phase === "h2");
@@ -1609,25 +1563,8 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onUndo, onFinishMatch, onD
   };
 
   const doSubstitution = (slotId, outId, inId) => {
-    mutateMatch((m) => {
-      const min = currentMinute(m, Date.now());
-      const role = formation.slots.find((s) => s.id === slotId)?.role;
-      const intervals = { ...m.intervals };
-      if (outId) {
-        const outArr = [...(intervals[outId] || [])];
-        if (outArr.length && outArr[outArr.length - 1].end == null) {
-          outArr[outArr.length - 1] = { ...outArr[outArr.length - 1], end: min };
-        }
-        intervals[outId] = outArr;
-      }
-      intervals[inId] = [...(intervals[inId] || []), { start: min, end: null, role }];
-      return {
-        ...m,
-        lineup: { ...m.lineup, [slotId]: inId },
-        intervals,
-        events: [...m.events, { id: uid("ev"), minute: min, type: "cambio", playerOutId: outId, playerInId: inId, slotId }],
-      };
-    });
+    const role = formation.slots.find((s) => s.id === slotId)?.role;
+    mutateMatch((m) => applySubstitution(m, { slotId, outId, inId, minute: currentMinute(m, Date.now()), role }));
     showToast("Cambio registrado");
     setActionSlot(null);
   };
@@ -1658,6 +1595,25 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onUndo, onFinishMatch, onD
     });
     showToast("Posición actualizada");
     setActionSlot(null);
+  };
+
+  const handleCard = (type, playerId) => {
+    const res = logCard(activeMatch, playerId, type, minute);
+    mutateMatch(() => res.match);
+    if (res.needsSub && res.subSlotId) {
+      setActionSlot({ slotId: res.subSlotId, empty: true, forced: true, cardedId: playerId });
+      showToast(type === "amarilla" ? "2ª amarilla: elige quién entra" : "Tarjeta azul: elige quién entra");
+    } else {
+      setActionSlot(null);
+      showToast(type === "roja" ? "Expulsado: juegas con uno menos" : "Tarjeta registrada");
+    }
+  };
+
+  const handleFormationChange = (key) => {
+    setFormationOpen(false);
+    if (key === activeMatch.formation) return;
+    mutateMatch(() => changeFormation(activeMatch, key, minute));
+    showToast(`Formación: ${key}`);
   };
 
   const handleFinish = (rivalGoalsFinal, notes, mvpVotes) => {
@@ -1707,12 +1663,21 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onUndo, onFinishMatch, onD
           </div>
           <button className="fm-chip" onClick={addExtraTime}>+1'</button>
           {activeMatch.phase === "h1" && <button className="fm-chip" onClick={goToHalftime}>Ir a descanso</button>}
+          <button className="fm-chip" onClick={() => setFormationOpen(true)}><Shirt size={12} /> {activeMatch.formation}</button>
+          <button className="fm-chip" onClick={() => setOrderOpen(true)}><ArrowLeftRight size={12} /> Cambios</button>
           <button className="fm-chip" onClick={onUndo}><RotateCcw size={12} /> Deshacer</button>
           <button className="fm-chip" onClick={() => setNotesOpen(true)}>Notas</button>
         </div>
       </div>
 
       <div className="fm-section" style={{ paddingBottom: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <span className="fm-label" style={{ margin: 0 }}>Alineación · {formation.label}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: sentOff > 0 ? "var(--card-red)" : "var(--ink-soft)" }}>
+            {onField}/{formation.slots.length}
+            {sentOff > 0 ? ` · ${sentOff} expulsado${sentOff > 1 ? "s" : ""}` : ""}
+          </span>
+        </div>
         <div className="fm-pitch-wrap">
           <PitchMarkings />
           {formation.slots.map((slot) => {
@@ -1741,6 +1706,11 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onUndo, onFinishMatch, onD
           ))}
           {bench.length === 0 && <div style={{ fontSize: 12.5, color: "var(--ink-faint)", padding: "8px 0" }}>Sin suplentes disponibles</div>}
         </div>
+        {suspended.length > 0 && (
+          <div style={{ marginTop: 8, fontSize: 12, color: "var(--card-red)", fontWeight: 700 }}>
+            Sin poder jugar: {suspended.map((p) => lastNameShort(p.name)).join(", ")}
+          </div>
+        )}
       </div>
 
       <div className="fm-timeline">
@@ -1767,14 +1737,75 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onUndo, onFinishMatch, onD
           formation={formation}
           playerById={playerById}
           bench={bench}
+          ordering={ordering}
           now={now}
           onGoal={logGoal}
           onSimple={logSimple}
+          onCard={handleCard}
           onSub={doSubstitution}
           onMove={doMove}
           onAddPlayer={onAddPlayer}
           onClose={() => setActionSlot(null)}
         />
+      )}
+
+      {formationOpen && (
+        <div className="fm-overlay" onClick={() => setFormationOpen(false)}>
+          <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="fm-sheet-handle" />
+            <div className="fm-sheet-head">
+              <div className="fm-sheet-title">Cambiar formación</div>
+              <button className="fm-iconbtn" onClick={() => setFormationOpen(false)}><X size={18} /></button>
+            </div>
+            <div className="fm-sheet-body">
+              <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 12, lineHeight: 1.45 }}>
+                Se mantienen los mismos jugadores en el campo; se recolocan según la nueva formación.
+              </div>
+              {Object.keys(FORMATIONS).map((key) => (
+                <div
+                  key={key}
+                  className={`fm-picker-row ${key === activeMatch.formation ? "leader" : ""}`}
+                  onClick={() => handleFormationChange(key)}
+                >
+                  <span className="fm-num" style={{ fontSize: 20 }}>{key}</span>
+                  <div style={{ flex: 1 }} />
+                  {key === activeMatch.formation && <Check size={16} color="var(--accent-amber)" />}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {orderOpen && (
+        <div className="fm-overlay" onClick={() => setOrderOpen(false)}>
+          <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="fm-sheet-handle" />
+            <div className="fm-sheet-head">
+              <div className="fm-sheet-title">Orden de cambios</div>
+              <button className="fm-iconbtn" onClick={() => setOrderOpen(false)}><X size={18} /></button>
+            </div>
+            <div className="fm-sheet-body">
+              <span className="fm-label">En el campo · más minutos jugados</span>
+              {ordering.field.map(({ player, minutes }) => (
+                <div key={player.id} className="fm-picker-row">
+                  <div className="fm-shirt"><span className="fm-num">{player.number}</span></div>
+                  <div style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{player.name}</div>
+                  <span className="fm-num" style={{ fontSize: 18, color: "var(--ink-soft)" }}>{minutes}'</span>
+                </div>
+              ))}
+              <span className="fm-label" style={{ marginTop: 16 }}>Banquillo · más tiempo esperando</span>
+              {ordering.bench.map(({ player, minutes }) => (
+                <div key={player.id} className="fm-picker-row">
+                  <div className="fm-shirt"><span className="fm-num">{player.number}</span></div>
+                  <div style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{player.name}</div>
+                  <span className="fm-num" style={{ fontSize: 18, color: "var(--ink-soft)" }}>{minutes}'</span>
+                </div>
+              ))}
+              {ordering.bench.length === 0 && <div className="fm-empty-text" style={{ padding: "12px 0" }}>Sin suplentes disponibles.</div>}
+            </div>
+          </div>
+        </div>
       )}
 
       {finishOpen && (
@@ -1830,6 +1861,10 @@ function TimelineRow({ ev, playerById }) {
     text = <><b>{nameOf(ev.playerId)}</b> ve tarjeta amarilla</>;
   } else if (ev.type === "roja") {
     text = <><b>{nameOf(ev.playerId)}</b> ve tarjeta roja</>;
+  } else if (ev.type === "azul") {
+    text = <><b>{nameOf(ev.playerId)}</b> ve tarjeta azul{ev.reason === "doble_amarilla" ? " (2ª amarilla)" : ""}</>;
+  } else if (ev.type === "formacion") {
+    text = <>Cambio de formación a <b>{ev.formation}</b></>;
   } else if (ev.type === "cambio") {
     text = ev.playerOutId
       ? <><b>{nameOf(ev.playerInId)}</b> entra por <b>{nameOf(ev.playerOutId)}</b></>
@@ -1844,8 +1879,8 @@ function TimelineRow({ ev, playerById }) {
     <div className="fm-tl-item">
       <span className="fm-tl-min fm-num">{ev.minute}'</span>
       <div className="fm-tl-icon" style={{ background: vis.bg }}>
-        {ev.type === "amarilla" || ev.type === "roja" ? (
-          <div className="fm-cardshape" style={{ background: ev.type === "amarilla" ? "var(--card-yellow)" : "var(--card-red)" }} />
+        {ev.type === "amarilla" || ev.type === "roja" || ev.type === "azul" ? (
+          <div className="fm-cardshape" style={{ background: ev.type === "amarilla" ? "var(--card-yellow)" : ev.type === "roja" ? "var(--card-red)" : "var(--accent-sky)" }} />
         ) : (
           <vis.icon size={15} color={vis.color} />
         )}
@@ -1858,7 +1893,7 @@ function TimelineRow({ ev, playerById }) {
   );
 }
 
-function SlotActionSheet({ actionSlot, match, formation, playerById, bench, now, onGoal, onSimple, onSub, onMove, onAddPlayer, onClose }) {
+function SlotActionSheet({ actionSlot, match, formation, playerById, bench, ordering, now, onGoal, onSimple, onCard, onSub, onMove, onAddPlayer, onClose }) {
   const [mode, setMode] = useState("menu"); // menu | assist | sub | move
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -1870,49 +1905,68 @@ function SlotActionSheet({ actionSlot, match, formation, playerById, bench, now,
   const minutesPlayed = playerId ? minutesForPlayer(match, playerId, min) : 0;
 
   if (empty) {
+    const canFill = canFillEmptySlot(match, formation);
+    const carded = actionSlot.cardedId ? playerById[actionSlot.cardedId] : null;
+    const benchList = ordering ? ordering.bench : (bench || []).map((p) => ({ player: p, minutes: 0 }));
     return (
       <div className="fm-overlay" onClick={onClose}>
         <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="fm-sheet-handle" />
           <div className="fm-sheet-head">
-            <div className="fm-sheet-title">{ROLE_LABEL[slot.role]}</div>
+            <div className="fm-sheet-title">
+              {carded ? `Entra por ${lastNameShort(carded.name)}` : ROLE_LABEL[slot.role]}
+            </div>
             <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
           </div>
           <div className="fm-sheet-body">
-            <span className="fm-label">Hacer entrar desde el banquillo</span>
-            {bench.length === 0 && <div className="fm-empty-text" style={{ padding: "16px 0" }}>No quedan suplentes.</div>}
-            {bench.map((p) => (
-              <div key={p.id} className="fm-picker-row" onClick={() => onSub(slotId, null, p.id)}>
-                <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
-                <div style={{ flex: 1, fontWeight: 700, fontSize: 14.5 }}>{p.name}</div>
-                {p.guest && <span className="fm-guest-tag">Invitado</span>}
+            {carded && (
+              <div style={{ fontSize: 12.5, color: "var(--accent-sky)", marginBottom: 10, lineHeight: 1.45 }}>
+                {lastNameShort(carded.name)} no puede seguir jugando (tarjeta azul). Elige al compañero que entra.
               </div>
-            ))}
-
-            {onAddPlayer && (
-              addOpen ? (
-                <div style={{ paddingTop: 10, borderTop: "1px solid var(--hair)", marginTop: 6 }}>
-                  <span className="fm-label">Nuevo jugador (viene un amigo a última hora)</span>
-                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                    <input className="fm-input" style={{ flex: 1 }} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nombre" autoFocus />
-                    <input className="fm-input" style={{ width: 70 }} type="number" inputMode="numeric" value={newNumber} onChange={(e) => setNewNumber(parseInt(e.target.value || "0", 10))} />
+            )}
+            {!canFill ? (
+              <div className="fm-empty-text" style={{ padding: "16px 0" }}>
+                Jugador expulsado: el equipo juega con uno menos y no se puede sustituir.
+              </div>
+            ) : (
+              <>
+                <span className="fm-label">Hacer entrar desde el banquillo</span>
+                {benchList.length === 0 && <div className="fm-empty-text" style={{ padding: "16px 0" }}>No quedan suplentes.</div>}
+                {benchList.map(({ player: p, minutes }) => (
+                  <div key={p.id} className="fm-picker-row" onClick={() => onSub(slotId, actionSlot.cardedId || null, p.id)}>
+                    <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
+                    <div style={{ flex: 1, fontWeight: 700, fontSize: 14.5 }}>{p.name}</div>
+                    {minutes > 0 && <span className="fm-num" style={{ fontSize: 17, color: "var(--ink-soft)" }}>{minutes}'</span>}
+                    {p.guest && <span className="fm-guest-tag">Invitado</span>}
                   </div>
-                  <button
-                    className="fm-btn fm-btn-primary fm-btn-block"
-                    disabled={!newName.trim()}
-                    onClick={() => {
-                      const p = onAddPlayer({ name: newName.trim(), number: newNumber, guest: true });
-                      onSub(slotId, null, p.id);
-                    }}
-                  >
-                    <UserPlus size={16} /> Añadir y hacer entrar
-                  </button>
-                </div>
-              ) : (
-                <button className="fm-btn fm-btn-ghost fm-btn-block" style={{ marginTop: 6 }} onClick={() => setAddOpen(true)}>
-                  <UserPlus size={16} /> Nuevo jugador
-                </button>
-              )
+                ))}
+
+                {onAddPlayer && (
+                  addOpen ? (
+                    <div style={{ paddingTop: 10, borderTop: "1px solid var(--hair)", marginTop: 6 }}>
+                      <span className="fm-label">Nuevo jugador (viene un amigo a última hora)</span>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                        <input className="fm-input" style={{ flex: 1 }} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nombre" autoFocus />
+                        <input className="fm-input" style={{ width: 70 }} type="number" inputMode="numeric" value={newNumber} onChange={(e) => setNewNumber(parseInt(e.target.value || "0", 10))} />
+                      </div>
+                      <button
+                        className="fm-btn fm-btn-primary fm-btn-block"
+                        disabled={!newName.trim()}
+                        onClick={() => {
+                          const p = onAddPlayer({ name: newName.trim(), number: newNumber, guest: true });
+                          onSub(slotId, actionSlot.cardedId || null, p.id);
+                        }}
+                      >
+                        <UserPlus size={16} /> Añadir y hacer entrar
+                      </button>
+                    </div>
+                  ) : (
+                    <button className="fm-btn fm-btn-ghost fm-btn-block" style={{ marginTop: 6 }} onClick={() => setAddOpen(true)}>
+                      <UserPlus size={16} /> Nuevo jugador
+                    </button>
+                  )
+                )}
+              </>
             )}
           </div>
         </div>
@@ -1953,15 +2007,21 @@ function SlotActionSheet({ actionSlot, match, formation, playerById, bench, now,
         <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="fm-sheet-handle" />
           <div className="fm-sheet-head">
-            <div className="fm-sheet-title">Cambio: sale {player.name}</div>
+            <div>
+              <div className="fm-sheet-title">Cambio: sale {lastNameShort(player.name)}</div>
+              <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>{minutesPlayed}' en el campo · entra el que más tiempo lleva esperando</div>
+            </div>
             <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
           </div>
           <div className="fm-sheet-body">
-            {bench.length === 0 && <div className="fm-empty-text" style={{ padding: "16px 0" }}>No quedan suplentes.</div>}
-            {bench.map((p) => (
+            {(ordering ? ordering.bench : (bench || []).map((player) => ({ player, minutes: 0 }))).length === 0 && (
+              <div className="fm-empty-text" style={{ padding: "16px 0" }}>No quedan suplentes.</div>
+            )}
+            {(ordering ? ordering.bench : (bench || []).map((player) => ({ player, minutes: 0 }))).map(({ player: p, minutes }) => (
               <div key={p.id} className="fm-picker-row" onClick={() => onSub(slotId, playerId, p.id)}>
                 <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
                 <div style={{ flex: 1, fontWeight: 700, fontSize: 14.5 }}>{p.name}</div>
+                <span className="fm-num" style={{ fontSize: 17, color: "var(--ink-soft)" }}>{minutes}'</span>
               </div>
             ))}
           </div>
@@ -2025,13 +2085,17 @@ function SlotActionSheet({ actionSlot, match, formation, playerById, bench, now,
               Parada
             </button>
           )}
-          <button className="fm-action-btn" onClick={() => onSimple("amarilla", playerId)}>
+          <button className="fm-action-btn" onClick={() => onCard("amarilla", playerId)}>
             <span className="fm-action-icon" style={{ background: "rgba(245,197,24,0.15)" }}><div className="fm-cardshape" style={{ background: "var(--card-yellow)" }} /></span>
-            Tarjeta amarilla
+            {yellowCount(match, playerId) >= 1 ? "Tarjeta amarilla (2ª = azul)" : "Tarjeta amarilla"}
           </button>
-          <button className="fm-action-btn" onClick={() => onSimple("roja", playerId)}>
+          <button className="fm-action-btn" onClick={() => onCard("roja", playerId)}>
             <span className="fm-action-icon" style={{ background: "rgba(228,72,60,0.15)" }}><div className="fm-cardshape" style={{ background: "var(--card-red)" }} /></span>
             Tarjeta roja
+          </button>
+          <button className="fm-action-btn" onClick={() => onCard("azul", playerId)}>
+            <span className="fm-action-icon" style={{ background: "rgba(79,169,232,0.15)" }}><div className="fm-cardshape" style={{ background: "var(--accent-sky)" }} /></span>
+            Tarjeta azul (sustituir)
           </button>
           <button className="fm-action-btn" onClick={() => setMode("sub")}>
             <span className="fm-action-icon" style={{ background: "rgba(234,244,238,0.08)" }}><ArrowLeftRight size={17} /></span>
@@ -2234,25 +2298,6 @@ function buildShareText(match, playerById) {
   }
   if (match.notes) text += `\nNotas: ${match.notes}\n`;
   return text;
-}
-
-function initialLineupOf(match) {
-  if (match.initialLineup) return match.initialLineup;
-  const formation = FORMATIONS[match.formation];
-  if (!formation) return match.lineup || {};
-  // Partidos antiguos sin initialLineup: se reconstruye desde los intervalos
-  // (quién empezó en cada rol, con el rol de su primer tramo).
-  const byRole = {};
-  Object.entries(match.intervals || {}).forEach(([pid, arr]) => {
-    const first = (arr || []).find((iv) => iv.start === 0);
-    if (first && first.role) (byRole[first.role] = byRole[first.role] || []).push(pid);
-  });
-  const result = {};
-  formation.slots.forEach((s) => {
-    const list = byRole[s.role];
-    if (list && list.length) result[s.id] = list.shift();
-  });
-  return result;
 }
 
 function MatchDetailSheet({ match, playerById, onUpdateVotes, onDelete, onClose }) {
