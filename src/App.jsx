@@ -237,17 +237,22 @@ const CSS = `
   background:none;border:none;padding:0;
 }
 .fm-slot-badge{
-  width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  width:clamp(42px, 13vw, 52px);height:clamp(42px, 13vw, 52px);border-radius:50%;display:flex;align-items:center;justify-content:center;
   border:2.5px solid rgba(234,244,238,0.45);background:rgba(8,20,15,0.92);
   box-shadow:0 2px 8px rgba(0,0,0,0.35);
 }
 .fm-slot-badge.filled{background:#08140F;border-color:var(--accent-amber);}
-.fm-slot-badge .fm-num{font-size:21px;color:#FFFFFF;font-weight:700;}
+.fm-slot-badge .fm-num{font-size:clamp(17px, 5.4vw, 21px);color:#FFFFFF;font-weight:700;}
 .fm-slot-empty-icon{color:#7C9C8A;}
 .fm-slot-label{
-  font-size:10.5px;font-weight:800;color:#FFFFFF;background:rgba(8,20,15,0.9);
-  padding:2px 8px;border-radius:100px;max-width:82px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:clamp(9px, 2.7vw, 10.5px);font-weight:800;color:#FFFFFF;background:rgba(8,20,15,0.9);
+  padding:2px 7px;border-radius:100px;max-width:clamp(58px,20vw,82px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
+
+.fm-field-row{display:flex;gap:12px;}
+.fm-field-row > div{flex:1;min-width:0;}
+@media (max-width:340px){ .fm-field-row{flex-direction:column;gap:14px;} }
+.fm-input[type="date"]{min-width:0;width:100%;}
 
 /* ---- Formation picker ---- */
 .fm-formations{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-bottom:14px;}
@@ -1168,12 +1173,12 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
         <span className="fm-label">Rival</span>
         <input className="fm-input" value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder="Nombre del equipo rival" />
       </div>
-      <div style={{ display: "flex", gap: 12, marginBottom: 22 }}>
-        <div style={{ flex: 1 }}>
+      <div className="fm-field-row" style={{ marginBottom: 22 }}>
+        <div>
           <span className="fm-label"><CalendarDays size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Fecha</span>
           <input className="fm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
-        <div style={{ flex: 1 }}>
+        <div>
           <span className="fm-label"><MapPin size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Lugar (opcional)</span>
           <input className="fm-input" value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Campo" />
         </div>
