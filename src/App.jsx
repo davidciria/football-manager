@@ -722,7 +722,6 @@ export default function App({ user = null, onLogout = null }) {
             activeMatch={activeMatch}
             onStartMatch={startMatch}
             mutateMatch={mutateMatch}
-            onUndo={undo}
             onFinishMatch={finishMatch}
             onDiscardMatch={discardMatch}
             onAddPlayer={addSquadPlayer}
@@ -1466,7 +1465,7 @@ function TemplateListSheet({ templates, onLoad, onDelete, onClose }) {
 
 /* ---------- Live match ---------- */
 
-function LiveMatch({ squad, activeMatch, mutateMatch, onUndo, onFinishMatch, onDiscardMatch, onAddPlayer, showToast }) {
+function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMatch, onAddPlayer, showToast }) {
   const [now, setNow] = useState(Date.now());
   const [actionSlot, setActionSlot] = useState(null);
   const [finishOpen, setFinishOpen] = useState(false);
@@ -1517,13 +1516,6 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onUndo, onFinishMatch, onD
       return { ...m, phase: "descanso", h1Seconds: m.h1Seconds + elapsed, runningSince: null };
     });
     vibrate(15);
-  };
-
-  const addExtraTime = () => {
-    mutateMatch((m) => {
-      const half = m.phase === "h1" ? "h1" : "h2";
-      return { ...m, addedTime: { ...m.addedTime, [half]: (m.addedTime[half] || 0) + 1 } };
-    }, { skipUndo: true });
   };
 
   const rivalGoal = (delta) => {
@@ -1666,11 +1658,9 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onUndo, onFinishMatch, onD
             <button className="fm-round-btn" onClick={() => rivalGoal(-1)}><Minus size={14} /></button>
             <button className="fm-round-btn" onClick={() => rivalGoal(1)}><Plus size={14} /></button>
           </div>
-          <button className="fm-chip" onClick={addExtraTime}>+1' añadido</button>
           {activeMatch.phase === "h1" && <button className="fm-chip" onClick={goToHalftime}><Pause size={13} /> Descanso</button>}
           <button className="fm-chip" onClick={() => setFormationOpen(true)}><Shirt size={14} /> {activeMatch.formation}</button>
           <button className="fm-chip" onClick={() => setOrderOpen(true)}><ArrowLeftRight size={14} /> Cambios</button>
-          <button className="fm-chip" onClick={onUndo}><RotateCcw size={13} /> Deshacer</button>
           <button className="fm-chip" onClick={() => setNotesOpen(true)}><PenLine size={14} /> Notas</button>
         </div>
       </div>
