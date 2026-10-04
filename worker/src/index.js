@@ -641,7 +641,20 @@ export default {
         return json({ error: "Error interno", detail: String(err?.message || err) }, 500);
       }
     }
-    if (env.ASSETS) return env.ASSETS.fetch(request);
+    if (env.ASSETS) {
+      const res = await env.ASSETS.fetch(request);
+      const ct = res.headers.get("content-type") || "";
+      // El HTML (y las rutas SPA) nunca deben cachearse, para que un deploy
+      // nuevo se vea al instante. Los assets con hash sí pueden cachearse.
+      if (ct.includes("text/html")) {
+        const headers = new Headers(res.headers);
+        headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+        headers.set("Pragma", "no-cache");
+        headers.set("Expires", "0");
+        return new Response(res.body, { status: res.status, headers });
+      }
+      return res;
+    }
     return new Response("Not found", { status: 404 });
   },
 };
