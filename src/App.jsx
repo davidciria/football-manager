@@ -59,6 +59,17 @@ const CSS = `
 }
 .fm-root *{box-sizing:border-box;}
 .fm-num{font-family:'Teko',sans-serif;font-weight:700;letter-spacing:0.01em;color:currentColor;}
+.fm-readonly-bar{
+  background:rgba(93,182,240,0.14); border-bottom:1px solid rgba(93,182,240,0.4);
+  color:#CFE9FF; font-size:12px; font-weight:700; padding:8px 18px; text-align:center;
+}
+.fm-role{
+  display:inline-flex; align-items:center; font-size:10.5px; font-weight:800; letter-spacing:0.03em;
+  padding:3px 9px; border-radius:100px; text-transform:uppercase; flex-shrink:0;
+}
+.fm-role-owner{background:rgba(245,178,63,0.18); color:var(--accent-amber);}
+.fm-role-editor{background:rgba(93,182,240,0.18); color:var(--accent-sky);}
+.fm-role-viewer{background:rgba(234,244,238,0.10); color:var(--ink-soft);}
 
 .fm-scroll{
   flex:1 1 auto;
@@ -524,7 +535,8 @@ function eventVisual(type) {
    ROOT APP
 ============================================================================ */
 
-export default function App({ user = null, onLogout = null }) {
+export default function App({ user = null, team = null, onLogout = null, onSwitchTeam = null }) {
+  const readOnly = team?.role === "viewer";
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("partido");
   const [squad, setSquad] = useState(DEFAULT_SQUAD);
@@ -565,45 +577,52 @@ export default function App({ user = null, onLogout = null }) {
   }, []);
 
   const updateSquad = useCallback((next) => {
+    if (readOnly) return;
     setSquad(next);
     storageSet("squad", next);
-  }, []);
+  }, [readOnly]);
 
   const addSquadPlayer = useCallback((partial) => {
     const player = { id: uid("p"), guest: false, ...partial };
+    if (readOnly) return player;
     setSquad((prev) => {
       const next = [...prev, player];
       storageSet("squad", next);
       return next;
     });
     return player;
-  }, []);
+  }, [readOnly]);
 
   const updateTemplates = useCallback((next) => {
+    if (readOnly) return;
     setTemplates(next);
     storageSet("templates", next);
-  }, []);
+  }, [readOnly]);
 
   const updateSettings = useCallback((next) => {
+    if (readOnly) return;
     setSettings(next);
     storageSet("settings", next);
-  }, []);
+  }, [readOnly]);
 
   const updateBoards = useCallback((next) => {
+    if (readOnly) return;
     setBoards(next);
     storageSet("boards", next);
-  }, []);
+  }, [readOnly]);
 
   const updateMatchInHistory = useCallback((matchId, updater) => {
+    if (readOnly) return;
     setHistory((prev) => {
       const next = prev.map((m) => (m.id === matchId ? updater(m) : m));
       storageSet("history", next);
       return next;
     });
-  }, []);
+  }, [readOnly]);
 
   // Mutating the active match always snapshots first for undo.
   const mutateMatch = useCallback((mutator, opts = {}) => {
+    if (readOnly) return;
     setActiveMatch((prev) => {
       if (!prev) return prev;
       if (!opts.skipUndo) {
@@ -614,7 +633,7 @@ export default function App({ user = null, onLogout = null }) {
       storageSet("active-match", next);
       return next;
     });
-  }, []);
+  }, [readOnly]);
 
   const undo = useCallback(() => {
     const snap = undoStack.current.pop();
@@ -629,31 +648,35 @@ export default function App({ user = null, onLogout = null }) {
   }, [showToast]);
 
   const startMatch = useCallback((matchInit) => {
+    if (readOnly) return;
     undoStack.current = [];
     setActiveMatch(matchInit);
     storageSet("active-match", matchInit);
-  }, []);
+  }, [readOnly]);
 
   const finishMatch = useCallback((finalMatch) => {
+    if (readOnly) return;
     const nextHistory = [finalMatch, ...history];
     setHistory(nextHistory);
     storageSet("history", nextHistory);
     setActiveMatch(null);
     storageDelete("active-match");
     undoStack.current = [];
-  }, [history]);
+  }, [history, readOnly]);
 
   const discardMatch = useCallback(() => {
+    if (readOnly) return;
     setActiveMatch(null);
     storageDelete("active-match");
     undoStack.current = [];
-  }, []);
+  }, [readOnly]);
 
   const deleteFromHistory = useCallback((id) => {
+    if (readOnly) return;
     const next = history.filter((m) => m.id !== id);
     setHistory(next);
     storageSet("history", next);
-  }, [history]);
+  }, [history, readOnly]);
 
   if (loading) {
     return (
@@ -671,8 +694,15 @@ export default function App({ user = null, onLogout = null }) {
       <AppHeader
         settings={settings}
         tab={tab}
+        team={team}
         onOpenSettings={() => setSettingsOpen(true)}
       />
+
+      {readOnly && (
+        <div className="fm-readonly-bar">
+          Solo lectura · {team?.name} — pide permisos de edición al propietario
+        </div>
+      )}
 
       <div className="fm-scroll">
         {tab === "partido" && (
@@ -711,7 +741,10 @@ export default function App({ user = null, onLogout = null }) {
         <SettingsModal
           settings={settings}
           user={user}
+          team={team}
+          readOnly={readOnly}
           onLogout={onLogout}
+          onSwitchTeam={onSwitchTeam}
           onSave={(s) => { updateSettings(s); setSettingsOpen(false); showToast("Ajustes guardados"); }}
           onClose={() => setSettingsOpen(false)}
         />
@@ -726,13 +759,13 @@ export default function App({ user = null, onLogout = null }) {
    HEADER + TAB BAR
 ============================================================================ */
 
-function AppHeader({ settings, tab, onOpenSettings }) {
+function AppHeader({ settings, tab, team, onOpenSettings }) {
   const titles = { partido: "Partido", plantilla: "Plantilla", pizarra: "Pizarra", historial: "Historial", temporada: "Temporada" };
   return (
     <div className="fm-header">
-      <div>
+      <div style={{ minWidth: 0 }}>
         <h1>{titles[tab]}</h1>
-        <div className="fm-sub">{settings.teamName}</div>
+        <div className="fm-sub">{team ? team.name : settings.teamName}</div>
       </div>
       <button className="fm-iconbtn" onClick={onOpenSettings} aria-label="Ajustes">
         <Settings size={18} />
@@ -767,213 +800,10 @@ function TabBar({ tab, setTab, hasActiveMatch }) {
 }
 
 /* ============================================================================
-   EQUIPO COMPARTIDO
-============================================================================ */
-
-function ShareSection({ user }) {
-  const [info, setInfo] = useState(null);
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState(null);
-  const [copied, setCopied] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch("/api/share", { credentials: "same-origin" });
-      if (res.ok) setInfo(await res.json());
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const join = async () => {
-    const value = code.trim().toUpperCase();
-    if (!value) return;
-    setBusy(true);
-    setMsg(null);
-    try {
-      const res = await fetch("/api/share/join", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: value }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setMsg({ type: "err", text: body.error || "No se pudo unir al equipo" });
-        setBusy(false);
-        return;
-      }
-      window.location.reload();
-    } catch {
-      setMsg({ type: "err", text: "Error de conexión" });
-      setBusy(false);
-    }
-  };
-
-  const leave = async () => {
-    if (!window.confirm("¿Seguro que quieres salir del equipo compartido? Dejarás de ver los datos compartidos.")) return;
-    setBusy(true);
-    try {
-      await fetch("/api/share/leave", { method: "POST", credentials: "same-origin" });
-      window.location.reload();
-    } catch {
-      setBusy(false);
-    }
-  };
-
-  const copy = async () => {
-    if (!info?.code) return;
-    try {
-      await navigator.clipboard.writeText(info.code.toUpperCase());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setMsg({ type: "ok", text: "Código: " + info.code.toUpperCase() });
-    }
-  };
-
-  if (!user) return null;
-
-  const members = info?.members || [];
-  const others = members.filter((e) => e !== user.email);
-  const shared = others.length > 0 || (info && !info.isOwner);
-
-  return (
-    <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--hair)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-        <Users size={16} color="var(--accent-amber)" />
-        <span style={{ fontWeight: 800, fontSize: 15 }}>Equipo compartido</span>
-      </div>
-      <div style={{ fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.5, marginBottom: 14 }}>
-        Compartid la plantilla, los partidos y las pizarras entre varias personas. Todos podrán ver y editar los mismos datos.
-      </div>
-
-      {/* Estado actual */}
-      <div
-        style={{
-          display: "flex", alignItems: "center", gap: 10, marginBottom: 16,
-          background: shared ? "rgba(245,178,63,0.12)" : "rgba(234,244,238,0.05)",
-          border: `1px solid ${shared ? "rgba(245,178,63,0.45)" : "var(--hair-strong)"}`,
-          borderRadius: 12, padding: "10px 12px",
-        }}
-      >
-        <span
-          style={{
-            width: 9, height: 9, borderRadius: "50%", flexShrink: 0,
-            background: shared ? "var(--accent-amber)" : "var(--ink-faint)",
-          }}
-        />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 800, fontSize: 13.5 }}>
-            {shared ? "Compartiendo" : "Solo tú"}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-            {members.length > 1
-              ? `Miembros: ${members.join(", ")}`
-              : "Los datos son privados (solo tu cuenta)."}
-          </div>
-        </div>
-      </div>
-
-      {/* Paso 1: compartir mi código */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
-        <div
-          style={{
-            width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 1,
-            background: "var(--accent-amber)", color: "var(--accent-amber-ink)",
-            fontSize: 12, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-        >
-          1
-        </div>
-        <div style={{ fontWeight: 700, fontSize: 13.5 }}>Invita a alguien con tu código</div>
-      </div>
-      {info?.code && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 6, marginLeft: 32 }}>
-          <div
-            className="fm-num"
-            style={{
-              flex: 1, background: "#0A1812", border: "1px solid rgba(234,244,238,0.28)",
-              borderRadius: 10, padding: "10px 12px", fontSize: 24, letterSpacing: "0.16em",
-              display: "flex", alignItems: "center", justifyContent: "center", color: "#FFFFFF",
-            }}
-          >
-            {info.code.toUpperCase()}
-          </div>
-          <button className="fm-btn fm-btn-primary" onClick={copy} style={{ minWidth: 92 }}>
-            {copied ? <><Check size={16} /> Copiado</> : "Copiar"}
-          </button>
-        </div>
-      )}
-      <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginBottom: 20, marginLeft: 32, lineHeight: 1.45 }}>
-        Tu compañero debe abrir Ajustes → Equipo compartido y pegar este código para unirse a tus datos.
-      </div>
-
-      {/* Paso 2: unirme con un código */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
-        <div
-          style={{
-            width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 1,
-            background: "var(--pitch-mid2)", color: "#FFFFFF",
-            fontSize: 12, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-        >
-          2
-        </div>
-        <div style={{ fontWeight: 700, fontSize: 13.5 }}>O únete con el código de un compañero</div>
-      </div>
-      <div style={{ display: "flex", gap: 8, marginLeft: 32 }}>
-        <input
-          className="fm-input"
-          placeholder="Ej: A1B2C3D4"
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          style={{ flex: 1, textTransform: "uppercase", letterSpacing: "0.12em" }}
-          maxLength={12}
-        />
-        <button className="fm-btn fm-btn-primary" onClick={join} disabled={busy || !code.trim()} style={{ minWidth: 92 }}>
-          Unirme
-        </button>
-      </div>
-      <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginTop: 8, marginLeft: 32, lineHeight: 1.45 }}>
-        Al unirte verás los datos de esa persona (y ella los tuyos).
-      </div>
-
-      {msg && (
-        <div
-          style={{
-            fontSize: 12.5, marginTop: 12, marginLeft: 32, fontWeight: 700,
-            color: msg.type === "err" ? "var(--card-red)" : "var(--accent-sky)",
-          }}
-        >
-          {msg.text}
-        </div>
-      )}
-
-      {info && !info.isOwner && (
-        <button
-          className="fm-btn fm-btn-ghost fm-btn-block"
-          style={{ marginTop: 18 }}
-          onClick={leave}
-          disabled={busy}
-        >
-          <ArrowRight size={16} /> Salir del equipo compartido
-        </button>
-      )}
-    </div>
-  );
-}
-
-/* ============================================================================
    SETTINGS MODAL
 ============================================================================ */
 
-function SettingsModal({ settings, onSave, onClose, user, onLogout }) {
+function SettingsModal({ settings, onSave, onClose, user, team, readOnly, onLogout, onSwitchTeam }) {
   const [teamName, setTeamName] = useState(settings.teamName);
   const [halfMinutes, setHalfMinutes] = useState(settings.halfMinutes);
   return (
@@ -985,9 +815,25 @@ function SettingsModal({ settings, onSave, onClose, user, onLogout }) {
           <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="fm-sheet-body">
+          {team && (
+            <div style={{ marginBottom: 16 }}>
+              <span className="fm-label">Equipo actual</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ fontWeight: 800, fontSize: 15, flex: 1 }}>{team.name}</span>
+                <span className={`fm-role fm-role-${team.role}`}>
+                  {{ owner: "Propietario", editor: "Editor", viewer: "Solo lectura" }[team.role] || team.role}
+                </span>
+              </div>
+              {onSwitchTeam && (
+                <button className="fm-btn fm-btn-ghost fm-btn-block" onClick={() => onSwitchTeam()}>
+                  <ArrowLeftRight size={16} /> Cambiar de equipo
+                </button>
+              )}
+            </div>
+          )}
           <div style={{ marginBottom: 16 }}>
-            <span className="fm-label">Nombre del equipo</span>
-            <input className="fm-input" value={teamName} onChange={(e) => setTeamName(e.target.value)} />
+            <span className="fm-label">Nombre del equipo (mostrado en la app)</span>
+            <input className="fm-input" value={teamName} onChange={(e) => setTeamName(e.target.value)} disabled={readOnly} />
           </div>
           <div style={{ marginBottom: 8 }}>
             <span className="fm-label">Duración de cada parte (minutos)</span>
@@ -997,8 +843,14 @@ function SettingsModal({ settings, onSave, onClose, user, onLogout }) {
               inputMode="numeric"
               value={halfMinutes}
               onChange={(e) => setHalfMinutes(Math.max(1, parseInt(e.target.value || "0", 10)))}
+              disabled={readOnly}
             />
           </div>
+          {readOnly && (
+            <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.5 }}>
+              Tienes permiso de <b>solo lectura</b> en este equipo. Pide al propietario que te ascienda a editor para poder modificar.
+            </div>
+          )}
           {user && (
             <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--hair)" }}>
               <span className="fm-label">Cuenta</span>
@@ -1013,13 +865,14 @@ function SettingsModal({ settings, onSave, onClose, user, onLogout }) {
               </button>
             </div>
           )}
-          <ShareSection user={user} />
         </div>
-        <div className="fm-sheet-actions">
-          <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => onSave({ teamName: teamName.trim() || "Mi Equipo", halfMinutes: halfMinutes || 25 })}>
-            <Check size={17} /> Guardar
-          </button>
-        </div>
+        {!readOnly && (
+          <div className="fm-sheet-actions">
+            <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => onSave({ teamName: teamName.trim() || "Mi Equipo", halfMinutes: halfMinutes || 25 })}>
+              <Check size={17} /> Guardar
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
