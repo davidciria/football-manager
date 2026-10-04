@@ -251,8 +251,8 @@ const CSS = `
 
 .fm-field-row{display:flex;gap:12px;}
 .fm-field-row > div{flex:1;min-width:0;}
-@media (max-width:340px){ .fm-field-row{flex-direction:column;gap:14px;} }
-.fm-input[type="date"]{min-width:0;width:100%;}
+@media (max-width:600px){ .fm-field-row{flex-direction:column;gap:16px;} }
+.fm-input[type="date"]{min-width:0;width:100%;max-width:100%;box-sizing:border-box;-webkit-appearance:none;appearance:none;}
 
 /* ---- Formation picker ---- */
 .fm-formations{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-bottom:14px;}
