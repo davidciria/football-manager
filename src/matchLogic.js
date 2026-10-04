@@ -390,18 +390,24 @@ export function clippedDuration(start, end, halfMin, cap) {
   return total;
 }
 
-/* Tiempo (en minutos) jugado/esperando por cada jugador, y desde el último
-   cambio. Todo con el minuto EFECTIVO (sin descuento).
-   - played: minutos totales que ha estado en el campo.
-   - bench:  minutos totales que ha estado fuera (banquillo/expulsado ya no cuenta).
-   - sinceChange: minutos desde su último cambio de estado (entrar o salir).
-   - onField: si está en el campo ahora.
-   - ejected: si fue expulsado (no puede jugar). */
+/* Tiempo por jugador con el minuto EFECTIVO (sin descuento y sin descanso):
+   - played:    minutos TOTALES en el campo.
+   - bench:     minutos TOTALES en el banquillo (fuera del campo).
+   - onSince:   minutos en el campo DESDE el último cambio (0 si está fuera).
+   - offSince:  minutos en el banquillo DESDE el último cambio (0 si está en el campo).
+   - onField:   si está en el campo ahora.
+   - ejected:   si fue expulsado (no puede jugar). */
 export function playerTimeStats(match, squad, now) {
   const eff = effectiveMinute(match, now);
   const halfMin = match.halfMinutes || 25;
   const ejected = outPlayers(match);
   const onField = new Set(Object.values(match.lineup || {}));
+
+  // Tiempo "de descanso" transcurrido entre partes (excluido del cómputo).
+  // Se calcula como el hueco entre el fin de la 1ª parte y el inicio de la 2ª
+  // en la escala de minutos de partido, que ya no existe: la 2ª parte empieza
+  // en halfMin. No hay que restarlo porque los tramos se miden en minutos de
+  // partido, pero lo dejamos explícito: el descanso no genera tramo alguno.
 
   const result = {};
   for (const p of squad) {
@@ -413,18 +419,28 @@ export function playerTimeStats(match, squad, now) {
     }
     const isOn = onField.has(p.id);
     const isEjected = ejected.has(p.id);
-    let sinceChange = 0;
+
+    // Desde el último cambio: si está en el campo, desde su último tramo abierto;
+    // si está fuera, desde que cerró su último tramo (o desde el inicio si nunca jugó).
+    let onSince = 0;
+    let offSince = 0;
     const last = intervals[intervals.length - 1];
-    if (last) {
-      if (last.end == null) sinceChange = Math.max(0, eff - Math.min(last.start, eff));
-      else sinceChange = Math.max(0, eff - Math.min(last.end, eff));
-    } else {
-      sinceChange = eff;
+    if (isOn && last && last.end == null) {
+      onSince = Math.max(0, eff - Math.min(last.start, eff));
+    } else if (last && last.end != null) {
+      offSince = Math.max(0, eff - Math.min(last.end, eff));
+    } else if (!last) {
+      offSince = eff; // nunca ha jugado
     }
+    // Limitar al tiempo total correspondiente.
+    onSince = Math.min(onSince, played);
+    offSince = Math.min(offSince, Math.max(0, eff - played));
+
     result[p.id] = {
       played,
       bench: Math.max(0, eff - played),
-      sinceChange,
+      onSince,
+      offSince,
       onField: isOn,
       ejected: isEjected,
     };

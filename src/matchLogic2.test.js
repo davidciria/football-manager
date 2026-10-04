@@ -127,7 +127,7 @@ describe("tiempos por jugador (jugado, banquillo, desde el ultimo cambio)", () =
       h1Seconds: 20 * 60,
       h2Seconds: 0,
       runningSince: null,
-      lineup: { gk: "p1", d1: "p2", d2: "p3", m1: "p4", m2: "p5", m3: "p6", f1: "p7" },
+      lineup: { gk: "p1", d1: "p8", d2: "p3", m1: "p4", m2: "p5", m3: "p6", f1: "p7" },
       intervals: {
         p1: [{ start: 0, end: null, role: "POR" }],
         p2: [{ start: 0, end: 10, role: "DEF" }],        // salio en el 10
@@ -144,17 +144,25 @@ describe("tiempos por jugador (jugado, banquillo, desde el ultimo cambio)", () =
     { id: "p9", name: "Nunca", number: 9 },
   ];
 
-  it("calcula minutos jugados, banquillo y desde el ultimo cambio", () => {
+  it("calcula las 4 metricas por jugador", () => {
     const m = make();
     const s = playerTimeStats(m, squad, 0);
     expect(s.p1.played).toBe(20); // desde el 0
+    expect(s.p1.bench).toBe(0);
+    expect(s.p1.onSince).toBe(20); // en el campo desde el 0
+    expect(s.p1.offSince).toBe(0);
     expect(s.p2.played).toBe(10); // 0-10
-    expect(s.p2.sinceChange).toBe(10); // salio en el 10 -> 10 en banquillo
+    expect(s.p2.bench).toBe(10);
+    expect(s.p2.onSince).toBe(0); // fuera
+    expect(s.p2.offSince).toBe(10); // salio en el 10 -> 10 en banquillo
     expect(s.p8.played).toBe(10); // 10-20
-    expect(s.p8.sinceChange).toBe(10); // entro en el 10
+    expect(s.p8.bench).toBe(10);
+    expect(s.p8.onSince).toBe(10); // entro en el 10
+    expect(s.p8.offSince).toBe(0);
     expect(s.p9.played).toBe(0);
     expect(s.p9.bench).toBe(20);
-    expect(s.p9.sinceChange).toBe(20);
+    expect(s.p9.onSince).toBe(0);
+    expect(s.p9.offSince).toBe(20); // nunca ha jugado
   });
 
   it("no cuenta el tiempo de descuento en los minutos", () => {
@@ -162,5 +170,16 @@ describe("tiempos por jugador (jugado, banquillo, desde el ultimo cambio)", () =
     const s = playerTimeStats(m, squad, 0);
     expect(s.p1.played).toBe(25); // capado a 25
     expect(s.p9.bench).toBe(25);
+  });
+
+  it("durante el descanso no suma minutos a nadie", () => {
+    const m = make({ phase: "descanso", h1Seconds: 25 * 60 });
+    const s = playerTimeStats(m, squad, 0);
+    expect(s.p1.played).toBe(25); // se queda congelado en 25
+    expect(s.p9.bench).toBe(25);
+    // En 2a parte, el reloj arranca de nuevo en halfMin: no se arrastra el descanso.
+    const m2 = make({ phase: "h2", h1Seconds: 25 * 60, h2Seconds: 0, runningSince: null });
+    const s2 = playerTimeStats(m2, squad, 0);
+    expect(s2.p1.played).toBe(25); // sigue 25 al empezar la 2a parte
   });
 });

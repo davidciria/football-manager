@@ -325,6 +325,10 @@ const CSS = `
 
 /* ---- Card icon (real card shape) ---- */
 .fm-cardshape{width:15px;height:20px;border-radius:3px;flex-shrink:0;}
+.fm-time-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;margin-top:4px;}
+.fm-time-grid > div{display:flex;align-items:baseline;gap:5px;}
+.fm-time-val{font-family:'Teko',sans-serif;font-weight:700;font-size:16px;line-height:1;}
+.fm-time-lbl{font-size:10px;color:var(--ink-faint);font-weight:600;}
 
 /* ---- Sheets / Modals ---- */
 .fm-overlay{
@@ -1676,26 +1680,25 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
             <div className="fm-sheet-head">
               <div>
                 <div className="fm-sheet-title">Tiempos y cambios</div>
-                <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>Jugado · Banquillo · Desde el último cambio</div>
+                <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Totales y desde el último cambio · sin descuento ni descanso</div>
               </div>
               <button className="fm-iconbtn" onClick={() => setOrderOpen(false)}><X size={18} /></button>
             </div>
             <div className="fm-sheet-body">
               <span className="fm-label">En el campo ({ordering.field.length}) · ordenados por minutos jugados</span>
               {ordering.field.map(({ player }) => {
-                const s = timeStats[player.id] || { played: 0, bench: 0, sinceChange: 0 };
+                const s = timeStats[player.id] || { played: 0, bench: 0, onSince: 0, offSince: 0 };
                 return (
-                  <div key={player.id} className="fm-picker-row">
-                    <div className="fm-shirt"><span className="fm-num">{player.number}</span></div>
+                  <div key={player.id} className="fm-picker-row" style={{ alignItems: "stretch" }}>
+                    <div className="fm-shirt" style={{ alignSelf: "center" }}><span className="fm-num">{player.number}</span></div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 14 }}>{player.name}</div>
-                      <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>
-                        {s.sinceChange}' desde que entró
+                      <div className="fm-time-grid">
+                        <div><span className="fm-time-val" style={{ color: "var(--accent-amber)" }}>{s.played}'</span><span className="fm-time-lbl">total en campo</span></div>
+                        <div><span className="fm-time-val" style={{ color: "var(--sky, #5DB6F0)" }}>{s.bench}'</span><span className="fm-time-lbl">total banquillo</span></div>
+                        <div><span className="fm-time-val" style={{ color: "var(--accent-amber)" }}>{s.onSince}'</span><span className="fm-time-lbl">en campo (últ. cambio)</span></div>
+                        <div><span className="fm-time-val" style={{ color: "var(--sky, #5DB6F0)" }}>{s.offSince}'</span><span className="fm-time-lbl">banquillo (últ. cambio)</span></div>
                       </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div className="fm-num" style={{ fontSize: 18, color: "var(--accent-amber)" }}>{s.played}'</div>
-                      <div style={{ fontSize: 10.5, color: "var(--ink-faint)" }}>jugados</div>
                     </div>
                   </div>
                 );
@@ -1704,19 +1707,18 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
 
               <span className="fm-label" style={{ marginTop: 16 }}>Banquillo ({ordering.bench.length}) · más tiempo esperando</span>
               {ordering.bench.map(({ player }) => {
-                const s = timeStats[player.id] || { played: 0, bench: 0, sinceChange: 0 };
+                const s = timeStats[player.id] || { played: 0, bench: 0, onSince: 0, offSince: 0 };
                 return (
-                  <div key={player.id} className="fm-picker-row">
-                    <div className="fm-shirt"><span className="fm-num">{player.number}</span></div>
+                  <div key={player.id} className="fm-picker-row" style={{ alignItems: "stretch" }}>
+                    <div className="fm-shirt" style={{ alignSelf: "center" }}><span className="fm-num">{player.number}</span></div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 14 }}>{player.name}</div>
-                      <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>
-                        {s.played > 0 ? `${s.played}' jugados · ` : ""}{s.sinceChange}' en el banquillo
+                      <div className="fm-time-grid">
+                        <div><span className="fm-time-val" style={{ color: "var(--accent-amber)" }}>{s.played}'</span><span className="fm-time-lbl">total en campo</span></div>
+                        <div><span className="fm-time-val" style={{ color: "var(--sky, #5DB6F0)" }}>{s.bench}'</span><span className="fm-time-lbl">total banquillo</span></div>
+                        <div><span className="fm-time-val" style={{ color: "var(--accent-amber)" }}>{s.onSince}'</span><span className="fm-time-lbl">en campo (últ. cambio)</span></div>
+                        <div><span className="fm-time-val" style={{ color: "var(--sky, #5DB6F0)" }}>{s.offSince}'</span><span className="fm-time-lbl">banquillo (últ. cambio)</span></div>
                       </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div className="fm-num" style={{ fontSize: 18, color: "var(--sky, #5DB6F0)" }}>{s.bench}'</div>
-                      <div style={{ fontSize: 10.5, color: "var(--ink-faint)" }}>en banquillo</div>
                     </div>
                   </div>
                 );
@@ -1946,7 +1948,7 @@ function SlotActionSheet({ actionSlot, match, formation, playerById, bench, orde
             <div>
               <div className="fm-sheet-title">Cambio: sale {lastNameShort(player.name)}</div>
               <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-                {minutesPlayed}' jugados{pStats && pStats.sinceChange > 0 ? ` · ${pStats.sinceChange}' desde que entró` : ""} · entra el que más tiempo lleva esperando
+                {minutesPlayed}' total en campo{pStats && pStats.onSince > 0 ? ` · ${pStats.onSince}' desde que entró` : ""} · entra el que más tiempo lleva esperando
               </div>
             </div>
             <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
@@ -2010,8 +2012,8 @@ function SlotActionSheet({ actionSlot, match, formation, playerById, bench, orde
           <div>
             <div className="fm-sheet-title">{player.name}</div>
             <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              {ROLE_LABEL[slot.role]} · {minutesPlayed}' jugados
-              {pStats && pStats.sinceChange > 0 ? ` · ${pStats.sinceChange}' desde el último cambio` : ""}
+              {ROLE_LABEL[slot.role]} · {minutesPlayed}' total en campo
+              {pStats && pStats.onSince > 0 ? ` · ${pStats.onSince}' desde que entró` : ""}
             </div>
           </div>
           <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
