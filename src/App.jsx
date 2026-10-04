@@ -1267,6 +1267,7 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
       formation: formationKey,
       halfMinutes: settings.halfMinutes,
       lineup, intervals,
+      initialLineup: { ...lineup },
       events: [],
       rivalGoals: 0,
       mvpVotes: {},
@@ -2235,10 +2236,30 @@ function buildShareText(match, playerById) {
   return text;
 }
 
+function initialLineupOf(match) {
+  if (match.initialLineup) return match.initialLineup;
+  const formation = FORMATIONS[match.formation];
+  if (!formation) return match.lineup || {};
+  // Partidos antiguos sin initialLineup: se reconstruye desde los intervalos
+  // (quién empezó en cada rol, con el rol de su primer tramo).
+  const byRole = {};
+  Object.entries(match.intervals || {}).forEach(([pid, arr]) => {
+    const first = (arr || []).find((iv) => iv.start === 0);
+    if (first && first.role) (byRole[first.role] = byRole[first.role] || []).push(pid);
+  });
+  const result = {};
+  formation.slots.forEach((s) => {
+    const list = byRole[s.role];
+    if (list && list.length) result[s.id] = list.shift();
+  });
+  return result;
+}
+
 function MatchDetailSheet({ match, playerById, onUpdateVotes, onDelete, onClose }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const goalsFor = match.events.filter((e) => e.type === "gol").length;
   const formation = FORMATIONS[match.formation];
+  const initialLineup = initialLineupOf(match);
 
   const share = async () => {
     const text = buildShareText(match, playerById);
@@ -2269,7 +2290,7 @@ function MatchDetailSheet({ match, playerById, onUpdateVotes, onDelete, onClose 
           <div style={{ marginBottom: 18 }}>
             <span className="fm-label">Alineación titular</span>
             {formation.slots.map((s) => {
-              const p = playerById[match.lineup[s.id]];
+              const p = playerById[initialLineup[s.id]];
               if (!p) return null;
               return (
                 <div key={s.id} className="fm-tl-item" style={{ padding: "7px 0" }}>
