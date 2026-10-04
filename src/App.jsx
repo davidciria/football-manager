@@ -1497,10 +1497,16 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
   };
 
   const handleCard = (type, playerId) => {
-    const res = logCard(activeMatch, playerId, type, minute);
-    mutateMatch(() => res.match);
-    if (res.needsSub && res.subSlotId) {
-      setActionSlot({ slotId: res.subSlotId, empty: true, forced: true, cardedId: playerId });
+    let needsSub = false;
+    let subSlotId = null;
+    mutateMatch((m) => {
+      const res = logCard(m, playerId, type, currentMinute(m, Date.now()));
+      needsSub = res.needsSub;
+      subSlotId = res.subSlotId;
+      return res.match;
+    });
+    if (needsSub && subSlotId) {
+      setActionSlot({ slotId: subSlotId, empty: true, forced: true, cardedId: playerId });
       showToast(type === "amarilla" ? "2ª amarilla: elige quién entra" : "Tarjeta azul: elige quién entra");
     } else {
       setActionSlot(null);
@@ -1511,7 +1517,7 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
   const handleFormationChange = (key) => {
     setFormationOpen(false);
     if (key === activeMatch.formation) return;
-    mutateMatch(() => changeFormation(activeMatch, key, minute));
+    mutateMatch((m) => changeFormation(m, key, currentMinute(m, Date.now())));
     showToast(`Formación: ${key}`);
   };
 
