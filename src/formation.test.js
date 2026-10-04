@@ -326,3 +326,60 @@ describe("cambio de formacion - UI handlers (logica de negocio)", () => {
     expect(m.events.find((e) => e.type === "formacion").minute).toBe(33);
   });
 });
+
+import { swapPlayers } from "./matchLogic.js";
+
+describe("intercambio de posiciones (doMove)", () => {
+  it("intercambia dos jugadores entre slots y actualiza roles", () => {
+    const m = makeMatch(); // p2 en d1 (DEF), p7 en f1 (DEL)
+    const next = swapPlayers(m, "d1", "f1", 10);
+    expect(next.lineup.d1).toBe("p7");
+    expect(next.lineup.f1).toBe("p2");
+    // p7 (era DEL) ahora en d1 -> rol DEF
+    const iv7 = next.intervals.p7;
+    expect(iv7[iv7.length - 1].role).toBe("DEF");
+    // p2 (era DEF) ahora en f1 -> rol DEL
+    const iv2 = next.intervals.p2;
+    expect(iv2[iv2.length - 1].role).toBe("DEL");
+    expect(onFieldCount(next)).toBe(7);
+  });
+
+  it("no pierde ninun jugador y no duplica", () => {
+    const m = makeMatch();
+    const next = swapPlayers(m, "d1", "m2", 10);
+    expect(new Set(Object.values(next.lineup)).size).toBe(7);
+    expect(Object.values(next.lineup).sort()).toEqual(Object.values(m.lineup).sort());
+  });
+
+  it("mover a un slot vacio deja el origen libre", () => {
+    const m = makeMatch();
+    delete m.lineup.f1; // hueco en delantera
+    const next = swapPlayers(m, "d1", "f1", 10);
+    expect(next.lineup.f1).toBe("p2");
+    expect(next.lineup.d1).toBeUndefined();
+    expect(onFieldCount(next)).toBe(6);
+  });
+
+  it("no crea nuevo tramo si el rol no cambia", () => {
+    const m = makeMatch();
+    // mover un MED (m1->p4) a otro MED (m2->p5): mismo rol
+    const next = swapPlayers(m, "m1", "m2", 10);
+    expect(next.intervals.p4.length).toBe(1); // sin partir
+    expect(next.intervals.p5.length).toBe(1);
+  });
+
+  it("swap con el mismo slot no hace nada", () => {
+    const m = makeMatch();
+    expect(swapPlayers(m, "d1", "d1", 10)).toBe(m);
+  });
+
+  it("los tiempos siguen cuadrando tras un intercambio", () => {
+    let m = swapPlayers(makeMatch({ h1Seconds: 5 * 60 }), "d1", "f1", 5);
+    m = { ...m, h1Seconds: 15 * 60 };
+    const stats = playerTimeStats(m, SQUAD, 0);
+    // Todos empezaron y ninguno salio: 15 min
+    Object.values(m.lineup).forEach((pid) => {
+      expect(stats[pid].played).toBe(15);
+    });
+  });
+});

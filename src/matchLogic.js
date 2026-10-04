@@ -184,6 +184,34 @@ export function applySubstitution(match, { slotId, outId, inId, minute, role }) 
   return { ...match, lineup, intervals, events };
 }
 
+/* Intercambia los ocupantes de dos slots (puede haber un slot vacío).
+   Si un slot está vacío, el jugador del otro se mueve allí y el origen queda
+   libre. Actualiza los intervalos (rol) de quienes cambian de posición. */
+export function swapPlayers(match, slotA, slotB, minute) {
+  const formation = FORMATIONS[match.formation];
+  const roleA = formation?.slots.find((s) => s.id === slotA)?.role;
+  const roleB = formation?.slots.find((s) => s.id === slotB)?.role;
+  const lineup = { ...(match.lineup || {}) };
+  const a = lineup[slotA];
+  const b = lineup[slotB];
+  if (a === b) return match; // mismo slot o ambos vacíos
+  let intervals = { ...(match.intervals || {}) };
+  const closeAndReopen = (pid, newRole) => {
+    intervals = closeOpenInterval(intervals, pid, minute);
+    intervals = { ...intervals, [pid]: [...(intervals[pid] || []), { start: minute, end: null, role: newRole }] };
+  };
+  // a se va a slotB -> su nuevo rol es roleB; b se va a slotA -> roleA.
+  const roleOf = (pid) => {
+    const slot = Object.keys(lineup).find((k) => lineup[k] === pid);
+    return formation?.slots.find((s) => s.id === slot)?.role;
+  };
+  if (a && roleOf(a) !== roleB) closeAndReopen(a, roleB);
+  if (b && roleOf(b) !== roleA) closeAndReopen(b, roleA);
+  if (b) lineup[slotA] = b; else delete lineup[slotA];
+  if (a) lineup[slotB] = a; else delete lineup[slotB];
+  return { ...match, lineup, intervals };
+}
+
 /* Cambio de formación en vivo: reubica a los mismos jugadores en los nuevos
    slots por rol y actualiza sus intervalos si cambian de rol. */
 export function changeFormation(match, formationKey, minute) {

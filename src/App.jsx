@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import {
   FORMATIONS, ROLE_LABEL, ROLE_SHORT,
-  logCard, applySubstitution, changeFormation, subOrdering,
+  logCard, applySubstitution, changeFormation, subOrdering, swapPlayers,
   initialLineupOf, outPlayers, canFillEmptySlot, onFieldCount, redCount, yellowCount,
   finalizeIntervals, eventsByMinute, halfElapsedSeconds, currentMinute, timerDisplay,
   effectiveMinute, playerTimeStats, clippedDuration, firstHalfBase,
@@ -1470,29 +1470,18 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
 
   const doMove = (slotId, targetSlotId) => {
     mutateMatch((m) => {
-      const min = currentMinute(m, Date.now());
-      const lineup = { ...m.lineup };
-      const a = lineup[slotId];
-      const b = lineup[targetSlotId];
-      const roleA = formation.slots.find((s) => s.id === targetSlotId)?.role; // a's new role
-      const roleB = formation.slots.find((s) => s.id === slotId)?.role; // b's new role
-      const intervals = { ...m.intervals };
-      const closeAndReopen = (pid, newRole) => {
-        const arr = [...(intervals[pid] || [])];
-        if (arr.length && arr[arr.length - 1].end == null) {
-          arr[arr.length - 1] = { ...arr[arr.length - 1], end: min };
-        }
-        arr.push({ start: min, end: null, role: newRole });
-        intervals[pid] = arr;
-      };
-      if (a) closeAndReopen(a, roleA);
-      if (b) closeAndReopen(b, roleB);
-      lineup[slotId] = b || null;
-      if (b == null) delete lineup[slotId];
-      if (a) lineup[targetSlotId] = a; else delete lineup[targetSlotId];
-      return { ...m, lineup, intervals };
+      const a = m.lineup[slotId];
+      const b = m.lineup[targetSlotId];
+      const next = swapPlayers(m, slotId, targetSlotId, currentMinute(m, Date.now()));
+      if (next !== m) {
+        return {
+          ...next,
+          events: [...(next.events || []), { id: uid("ev"), minute: currentMinute(m, Date.now()), type: "movimiento", playerId: a || b, fromSlot: slotId, toSlot: targetSlotId }],
+        };
+      }
+      return m;
     });
-    showToast("Posición actualizada");
+    showToast("Posiciones intercambiadas");
     setActionSlot(null);
   };
 
@@ -1988,7 +1977,10 @@ function SlotActionSheet({ actionSlot, match, formation, playerById, bench, orde
         <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="fm-sheet-handle" />
           <div className="fm-sheet-head">
-            <div className="fm-sheet-title">Mover a {player.name}</div>
+            <div>
+              <div className="fm-sheet-title">Mover a {lastNameShort(player.name)}</div>
+              <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>Elige la posición: se intercambian los jugadores</div>
+            </div>
             <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
           </div>
           <div className="fm-sheet-body">
@@ -1999,7 +1991,9 @@ function SlotActionSheet({ actionSlot, match, formation, playerById, bench, orde
                 <div key={s.id} className="fm-picker-row" onClick={() => onMove(slotId, s.id)}>
                   <span className={`fm-badge-role role-${s.role}`}>{ROLE_SHORT[s.role]}</span>
                   <div style={{ flex: 1, fontSize: 14 }}>
-                    {occupant ? <><b>{occupant.name}</b> · posición libre tras el cambio</> : "Posición vacía"}
+                    {occupant
+                      ? <>Intercambiar con <b>{occupant.name}</b></>
+                      : <>Mover aquí <span style={{ color: "var(--ink-faint)" }}>(posición libre)</span></>}
                   </div>
                 </div>
               );
