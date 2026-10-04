@@ -465,15 +465,33 @@ export function playerTimeStats(match, squad, now) {
     const isOn = onField.has(p.id);
     const isEjected = ejected.has(p.id);
 
-    // Desde el último cambio: si está en el campo, desde su último tramo abierto;
-    // si está fuera, desde que cerró su último tramo (o desde el inicio si nunca jugó).
+    // "Desde el último cambio [de jugador]": tiempo continuo en el campo (o en
+    // el banquillo) sin haber salido/entrado. Los cambios de ROL/posición
+    // parten el intervalo pero NO cuentan como un cambio de jugador, así que
+    // unimos tramos contiguos (end de uno == start del siguiente).
     let onSince = 0;
     let offSince = 0;
     const last = intervals[intervals.length - 1];
     if (isOn && last && last.end == null) {
-      onSince = Math.max(0, eff - Math.min(last.start, eff));
+      // Racha continua en el campo que termina en el tramo abierto.
+      let spellStart = last.start;
+      for (let i = intervals.length - 2; i >= 0; i--) {
+        const prev = intervals[i];
+        if (prev.end != null && prev.end === spellStart) spellStart = prev.start;
+        else break;
+      }
+      onSince = Math.max(0, eff - Math.min(spellStart, eff));
     } else if (last && last.end != null) {
-      offSince = Math.max(0, eff - Math.min(last.end, eff));
+      // Racha continua que terminó cuando salió por última vez.
+      let spellEnd = last.end;
+      let spellStart = last.start;
+      for (let i = intervals.length - 2; i >= 0; i--) {
+        const prev = intervals[i];
+        if (prev.end != null && prev.end === spellStart) { spellStart = prev.start; }
+        else break;
+      }
+      // Desde que salió (spellEnd), no desde que empezó la racha.
+      offSince = Math.max(0, eff - Math.min(spellEnd, eff));
     } else if (!last) {
       offSince = eff; // nunca ha jugado
     }

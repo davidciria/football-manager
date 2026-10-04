@@ -383,3 +383,37 @@ describe("intercambio de posiciones (doMove)", () => {
     });
   });
 });
+
+describe("onSince no se resetea con cambios de formacion (bug)", () => {
+  it("cambiar formacion no pone a 0 los minutos desde el ultimo cambio", () => {
+    const m = makeMatch({ h1Seconds: 15 * 60 });
+    const before = playerTimeStats(m, SQUAD, 0);
+    const m2 = changeFormation(m, "1-4-1-1", 15);
+    const after = playerTimeStats(m2, SQUAD, 0);
+    // Solo los jugadores que están en el campo (los 7 iniciales)
+    Object.values(m.lineup).forEach((pid) => {
+      expect(after[pid].onSince).toBe(before[pid].onSince); // no cambia
+      expect(after[pid].onSince).toBe(15); // y no es 0
+    });
+  });
+
+  it("una sustitucion real SI resetea onSince del que entra", () => {
+    let m = makeMatch({ h1Seconds: 3 * 60 });
+    m = applySubstitution(m, { slotId: "d1", outId: "p2", inId: "p8", minute: 3, role: "DEF" });
+    m = { ...m, h1Seconds: 10 * 60 };
+    const s = playerTimeStats(m, SQUAD, 0);
+    expect(s.p8.onSince).toBe(7); // entro en el 3, ahora 10 -> 7
+    expect(s.p2.offSince).toBe(7); // salio en el 3
+  });
+
+  it("encadenar cambio de formacion y sustitucion mantiene tiempos coherentes", () => {
+    let m = makeMatch({ h1Seconds: 5 * 60 });
+    m = changeFormation(m, "1-4-1-1", 5);          // cambia roles, no resetea
+    m = applySubstitution(m, { slotId: "gk", outId: "p1", inId: "p8", minute: 8, role: "POR" });
+    m = { ...m, h1Seconds: 20 * 60 };
+    const s = playerTimeStats(m, SQUAD, 0);
+    expect(s.p8.onSince).toBe(12); // entro en el 8, ahora 20
+    expect(s.p1.onSince).toBe(0);  // salio
+    expect(s.p1.offSince).toBe(12);
+  });
+});
