@@ -156,6 +156,13 @@ const CSS = `
 .fm-chip:active{background:#245743;transform:scale(0.97);}
 .fm-chip.on{background:var(--accent-amber);color:var(--accent-amber-ink);border-color:var(--accent-amber);}
 .fm-chip svg{flex-shrink:0;}
+.fm-tags{display:flex;flex-wrap:wrap;gap:8px;}
+.fm-tag{
+  padding:7px 12px;border-radius:100px;font-size:12.5px;font-weight:700;font-family:'Manrope',sans-serif;
+  background:#1B4636;border:1.5px solid rgba(234,244,238,0.28);color:#EAF4EE;cursor:pointer;
+  touch-action:manipulation;
+}
+.fm-tag:active{background:#245743;transform:scale(0.97);}
 
 .fm-badge-role{
   width:27px;height:27px;border-radius:7px;display:flex;align-items:center;justify-content:center;
@@ -2065,20 +2072,63 @@ function SlotActionSheet({ actionSlot, match, formation, playerById, bench, orde
   );
 }
 
+const NOTE_TAGS = [
+  "Buena presión",
+  "Falta intensidad",
+  "Mejorar saques de banda",
+  "Ocupar bien los espacios",
+  "Bajar a defender",
+  "Subir líneas",
+  "Errores en pases",
+  "Buen juego por banda",
+  "Falta de comunicación",
+  "Mejorar el repliegue",
+];
+
 function NotesSheet({ notes, onSave, onClose }) {
   const [text, setText] = useState(notes || "");
+
+  const addTag = (tag) => {
+    setText((prev) => {
+      const base = prev.trimEnd();
+      if (base.includes(tag)) return prev;
+      return base ? `${base}\n• ${tag}` : `• ${tag}`;
+    });
+  };
+
   return (
     <div className="fm-overlay" onClick={onClose}>
       <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="fm-sheet-handle" />
         <div className="fm-sheet-head">
-          <div className="fm-sheet-title">Notas del partido</div>
+          <div>
+            <div className="fm-sheet-title">Notas del partido</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>Aspectos tácticos, para el descanso y para después</div>
+          </div>
           <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="fm-sheet-body">
-          <textarea className="fm-input fm-textarea" value={text} onChange={(e) => setText(e.target.value)} placeholder="Anotaciones tácticas, para el descanso, para después del partido…" autoFocus />
+          <span className="fm-label">Notas rápidas (toca para añadir)</span>
+          <div className="fm-tags">
+            {NOTE_TAGS.map((t) => (
+              <button key={t} type="button" className="fm-tag" onClick={() => addTag(t)}>{t}</button>
+            ))}
+          </div>
+
+          <span className="fm-label" style={{ marginTop: 14 }}>Notas</span>
+          <textarea
+            className="fm-input fm-textarea"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Escribe aquí lo que quieras recordar de este partido…"
+            autoFocus
+          />
+          <div style={{ fontSize: 11, color: "var(--ink-faint)", textAlign: "right", marginTop: 4 }}>{text.length} caracteres</div>
         </div>
         <div className="fm-sheet-actions">
+          {text.trim() && (
+            <button className="fm-btn fm-btn-ghost fm-btn-block" onClick={() => setText("")}><Trash2 size={15} /> Borrar notas</button>
+          )}
           <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => onSave(text)}><Check size={17} /> Guardar notas</button>
         </div>
       </div>
@@ -2372,7 +2422,7 @@ function TemporadaTab({ history, squad }) {
   const playerById = useMemo(() => Object.fromEntries(squad.map((p) => [p.id, p])), [squad]);
 
   const emptyStat = (player) => ({
-    player, partidos: 0, goles: 0, asistencias: 0, paradas: 0, amarillas: 0, rojas: 0,
+    player, partidos: 0, goles: 0, asistencias: 0, paradas: 0,
     minutos: 0, minutosPorRol: { POR: 0, DEF: 0, MED: 0, DEL: 0 }, mvpAwards: 0, mvpVotesTotal: 0,
     amarillas: 0, rojas: 0, azules: 0,
   });
@@ -2488,7 +2538,7 @@ function TemporadaTab({ history, squad }) {
               <XAxis dataKey="name" tick={{ fill: "#C7E2D6", fontSize: 11.5 }} axisLine={{ stroke: "rgba(234,244,238,0.15)" }} tickLine={false} />
               <YAxis tick={{ fill: "#C7E2D6", fontSize: 11.5 }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip contentStyle={{ background: "#0A1812", border: "1px solid rgba(234,244,238,0.28)", borderRadius: 8, fontSize: 12.5 }} labelStyle={{ color: "#F2FAF5" }} cursor={{ fill: "rgba(234,244,238,0.08)" }} />
-              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+              <Bar dataKey="value" fill="#F5B23F" radius={[6, 6, 0, 0]} isAnimationActive={false}>
                 {chartData.map((_, i) => <Cell key={i} fill="#F5B23F" />)}
               </Bar>
             </BarChart>
