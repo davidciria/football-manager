@@ -359,3 +359,82 @@ export function timerDisplay(match, now) {
   }
   return { main: "00:00", added: null };
 }
+
+/* Minuto EFECTIVO 1..(2*halfMin), sin contar los minutos de descuento.
+   Si una parte se pasó de halfMin, se capa a halfMin (esos extra no cuentan
+   para los minutos jugados). Se usa para atribuir tiempos a jugadores. */
+export function effectiveMinute(match, now) {
+  const { h1, h2 } = halfElapsedSeconds(match, now);
+  const halfMin = match.halfMinutes || 25;
+  const capH1 = Math.min(h1, halfMin * 60);
+  const capH2 = Math.min(h2, halfMin * 60);
+  if (match.phase === "h1") return Math.floor(capH1 / 60);
+  if (match.phase === "descanso") return halfMin;
+  if (match.phase === "h2" || match.phase === "finalizado") return halfMin + Math.floor(capH2 / 60);
+  return 0;
+}
+
+/* Duración efectiva de un tramo [start,end] recortada a las partes del partido
+   (1ª: 0..halfMin, 2ª: halfMin..2*halfMin) y al minuto final efectivo `cap`.
+   Excluye el descanso y los minutos de descuento. */
+export function clippedDuration(start, end, halfMin, cap) {
+  const half = halfMin || 25;
+  const clampedEnd = Math.min(end, cap);
+  if (clampedEnd <= start) return 0;
+  let total = 0;
+  const s1 = Math.min(start, half);
+  const e1 = Math.min(clampedEnd, half);
+  if (e1 > s1) total += e1 - s1;
+  const s2 = Math.max(start, half);
+  if (clampedEnd > s2) total += clampedEnd - s2;
+  return total;
+}
+
+/* Tiempo (en minutos) jugado/esperando por cada jugador, y desde el último
+   cambio. Todo con el minuto EFECTIVO (sin descuento).
+   - played: minutos totales que ha estado en el campo.
+   - bench:  minutos totales que ha estado fuera (banquillo/expulsado ya no cuenta).
+   - sinceChange: minutos desde su último cambio de estado (entrar o salir).
+   - onField: si está en el campo ahora.
+   - ejected: si fue expulsado (no puede jugar). */
+export function playerTimeStats(match, squad, now) {
+  const eff = effectiveMinute(match, now);
+  const halfMin = match.halfMinutes || 25;
+  const ejected = outPlayers(match);
+  const onField = new Set(Object.values(match.lineup || {}));
+
+  const result = {};
+  for (const p of squad) {
+    const intervals = (match.intervals && match.intervals[p.id]) || [];
+    let played = 0;
+    for (const iv of intervals) {
+      const end = iv.end == null ? eff : iv.end;
+      played += clippedDuration(iv.start, end, halfMin, eff);
+    }
+    const isOn = onField.has(p.id);
+    const isEjected = ejected.has(p.id);
+    let sinceChange = 0;
+    const last = intervals[intervals.length - 1];
+    if (last) {
+      if (last.end == null) sinceChange = Math.max(0, eff - Math.min(last.start, eff));
+      else sinceChange = Math.max(0, eff - Math.min(last.end, eff));
+    } else {
+      sinceChange = eff;
+    }
+    result[p.id] = {
+      played,
+      bench: Math.max(0, eff - played),
+      sinceChange,
+      onField: isOn,
+      ejected: isEjected,
+    };
+  }
+  return result;
+}
+
+/* Formatea minutos como "M'" o "M:SS" simplificado. */
+export function fmtMin(n) {
+  const m = Math.max(0, Math.floor(n || 0));
+  return `${m}'`;
+}
+

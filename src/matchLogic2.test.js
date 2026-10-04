@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { eventsByMinute, cardTotals, logCard, halfElapsedSeconds, currentMinute, timerDisplay } from "./matchLogic.js";
+import { eventsByMinute, cardTotals, logCard, halfElapsedSeconds, currentMinute, timerDisplay, effectiveMinute, playerTimeStats } from "./matchLogic.js";
 
 function base() {
   return {
@@ -100,5 +100,67 @@ describe("temporizador", () => {
     const t = timerDisplay(m, 0);
     expect(t.main).toBe("26:20");
     expect(t.added).toBe("+2'");
+  });
+});
+
+describe("minuto efectivo (sin descuento)", () => {
+  it("capa la 1a parte a halfMin aunque se juegue mas", () => {
+    const m = { phase: "h1", halfMinutes: 25, h1Seconds: 27 * 60, h2Seconds: 0, runningSince: null };
+    expect(effectiveMinute(m, 0)).toBe(25); // 27 reales -> 25 efectivos
+  });
+  it("la 2a parte empieza en halfMin y capa igual", () => {
+    const m = { phase: "h2", halfMinutes: 25, h1Seconds: 0, h2Seconds: 27 * 60, runningSince: null };
+    expect(effectiveMinute(m, 0)).toBe(50); // 25 + 25 capados
+  });
+  it("durante la 1a parte cuenta los minutos reales hasta el limite", () => {
+    const m = { phase: "h1", halfMinutes: 25, h1Seconds: 10 * 60, h2Seconds: 0, runningSince: null };
+    expect(effectiveMinute(m, 0)).toBe(10);
+  });
+});
+
+describe("tiempos por jugador (jugado, banquillo, desde el ultimo cambio)", () => {
+  function make(overrides = {}) {
+    return {
+      formation: "1-2-3-1",
+      halfMinutes: 25,
+      phase: "h1",
+      h1Seconds: 20 * 60,
+      h2Seconds: 0,
+      runningSince: null,
+      lineup: { gk: "p1", d1: "p2", d2: "p3", m1: "p4", m2: "p5", m3: "p6", f1: "p7" },
+      intervals: {
+        p1: [{ start: 0, end: null, role: "POR" }],
+        p2: [{ start: 0, end: 10, role: "DEF" }],        // salio en el 10
+        p8: [{ start: 10, end: null, role: "DEF" }],     // entro en el 10
+      },
+      events: [],
+      ...overrides,
+    };
+  }
+  const squad = [
+    { id: "p1", name: "Portero", number: 1 },
+    { id: "p2", name: "Salio", number: 2 },
+    { id: "p8", name: "Entro", number: 8 },
+    { id: "p9", name: "Nunca", number: 9 },
+  ];
+
+  it("calcula minutos jugados, banquillo y desde el ultimo cambio", () => {
+    const m = make();
+    const s = playerTimeStats(m, squad, 0);
+    expect(s.p1.played).toBe(20); // desde el 0
+    expect(s.p2.played).toBe(10); // 0-10
+    expect(s.p2.sinceChange).toBe(10); // salio en el 10 -> 10 en banquillo
+    expect(s.p8.played).toBe(10); // 10-20
+    expect(s.p8.sinceChange).toBe(10); // entro en el 10
+    expect(s.p9.played).toBe(0);
+    expect(s.p9.bench).toBe(20);
+    expect(s.p9.sinceChange).toBe(20);
+  });
+
+  it("no cuenta el tiempo de descuento en los minutos", () => {
+    const m = make({ h1Seconds: 28 * 60 }); // 28 reales, halfMin 25
+    const s = playerTimeStats(m, squad, 0);
+    expect(s.p1.played).toBe(25); // capado a 25
+    expect(s.p9.bench).toBe(25);
   });
 });

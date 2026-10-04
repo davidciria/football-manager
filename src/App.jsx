@@ -14,6 +14,7 @@ import {
   logCard, applySubstitution, changeFormation, subOrdering,
   initialLineupOf, outPlayers, canFillEmptySlot, onFieldCount, redCount, yellowCount,
   finalizeIntervals, eventsByMinute, halfElapsedSeconds, currentMinute, timerDisplay,
+  effectiveMinute, playerTimeStats, clippedDuration,
 } from "./matchLogic.js";
 
 /* ============================================================================
@@ -258,10 +259,10 @@ const CSS = `
 .fm-formations{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-bottom:14px;}
 .fm-formation-opt{
   flex-shrink:0;background:var(--pitch-mid);border:1.5px solid var(--hair-strong);border-radius:12px;
-  padding:9px 14px;text-align:center;
+  padding:9px 14px;text-align:center;color:#FFFFFF;
 }
-.fm-formation-opt.active{border-color:var(--accent-amber);background:rgba(242,169,59,0.10);}
-.fm-formation-opt .fm-num{font-size:19px;display:block;}
+.fm-formation-opt.active{border-color:var(--accent-amber);background:rgba(242,169,59,0.10);color:#FFFFFF;}
+.fm-formation-opt .fm-num{font-size:19px;display:block;color:#FFFFFF;}
 
 /* ---- Scoreboard (live) ---- */
 .fm-scoreboard{
@@ -1378,9 +1379,11 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
   const bench = squad.filter((p) => !assignedIds.has(p.id) && !outSet.has(p.id));
   const suspended = squad.filter((p) => outSet.has(p.id));
   const minute = currentMinute(activeMatch, now);
+  const effMinute = effectiveMinute(activeMatch, now);
   const onField = onFieldCount(activeMatch);
   const sentOff = redCount(activeMatch);
-  const ordering = useMemo(() => subOrdering(activeMatch, squad, minute), [activeMatch, squad, minute]);
+  const ordering = useMemo(() => subOrdering(activeMatch, squad, effMinute), [activeMatch, squad, effMinute]);
+  const timeStats = useMemo(() => playerTimeStats(activeMatch, squad, now), [activeMatch, squad, now]);
   const timer = timerDisplay(activeMatch, now);
   const goalsFor = activeMatch.events.filter((e) => e.type === "gol").length;
   const isRunning = !!activeMatch.runningSince && (activeMatch.phase === "h1" || activeMatch.phase === "h2");
@@ -1626,6 +1629,7 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
           playerById={playerById}
           bench={bench}
           ordering={ordering}
+          timeStats={timeStats}
           now={now}
           onGoal={logGoal}
           onSimple={logSimple}
@@ -1670,27 +1674,70 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
           <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="fm-sheet-handle" />
             <div className="fm-sheet-head">
-              <div className="fm-sheet-title">Orden de cambios</div>
+              <div>
+                <div className="fm-sheet-title">Tiempos y cambios</div>
+                <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>Jugado · Banquillo · Desde el último cambio</div>
+              </div>
               <button className="fm-iconbtn" onClick={() => setOrderOpen(false)}><X size={18} /></button>
             </div>
             <div className="fm-sheet-body">
-              <span className="fm-label">En el campo · más minutos jugados</span>
-              {ordering.field.map(({ player, minutes }) => (
-                <div key={player.id} className="fm-picker-row">
-                  <div className="fm-shirt"><span className="fm-num">{player.number}</span></div>
-                  <div style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{player.name}</div>
-                  <span className="fm-num" style={{ fontSize: 18, color: "var(--ink-soft)" }}>{minutes}'</span>
-                </div>
-              ))}
-              <span className="fm-label" style={{ marginTop: 16 }}>Banquillo · más tiempo esperando</span>
-              {ordering.bench.map(({ player, minutes }) => (
-                <div key={player.id} className="fm-picker-row">
-                  <div className="fm-shirt"><span className="fm-num">{player.number}</span></div>
-                  <div style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{player.name}</div>
-                  <span className="fm-num" style={{ fontSize: 18, color: "var(--ink-soft)" }}>{minutes}'</span>
-                </div>
-              ))}
+              <span className="fm-label">En el campo ({ordering.field.length}) · ordenados por minutos jugados</span>
+              {ordering.field.map(({ player }) => {
+                const s = timeStats[player.id] || { played: 0, bench: 0, sinceChange: 0 };
+                return (
+                  <div key={player.id} className="fm-picker-row">
+                    <div className="fm-shirt"><span className="fm-num">{player.number}</span></div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{player.name}</div>
+                      <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>
+                        {s.sinceChange}' desde que entró
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div className="fm-num" style={{ fontSize: 18, color: "var(--accent-amber)" }}>{s.played}'</div>
+                      <div style={{ fontSize: 10.5, color: "var(--ink-faint)" }}>jugados</div>
+                    </div>
+                  </div>
+                );
+              })}
+              {ordering.field.length === 0 && <div className="fm-empty-text" style={{ padding: "12px 0" }}>Nadie en el campo.</div>}
+
+              <span className="fm-label" style={{ marginTop: 16 }}>Banquillo ({ordering.bench.length}) · más tiempo esperando</span>
+              {ordering.bench.map(({ player }) => {
+                const s = timeStats[player.id] || { played: 0, bench: 0, sinceChange: 0 };
+                return (
+                  <div key={player.id} className="fm-picker-row">
+                    <div className="fm-shirt"><span className="fm-num">{player.number}</span></div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{player.name}</div>
+                      <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>
+                        {s.played > 0 ? `${s.played}' jugados · ` : ""}{s.sinceChange}' en el banquillo
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div className="fm-num" style={{ fontSize: 18, color: "var(--sky, #5DB6F0)" }}>{s.bench}'</div>
+                      <div style={{ fontSize: 10.5, color: "var(--ink-faint)" }}>en banquillo</div>
+                    </div>
+                  </div>
+                );
+              })}
               {ordering.bench.length === 0 && <div className="fm-empty-text" style={{ padding: "12px 0" }}>Sin suplentes disponibles.</div>}
+
+              {suspended.length > 0 && (
+                <>
+                  <span className="fm-label" style={{ marginTop: 16 }}>Expulsados (no pueden jugar)</span>
+                  {suspended.map((p) => {
+                    const s = timeStats[p.id] || { played: 0 };
+                    return (
+                      <div key={p.id} className="fm-picker-row" style={{ opacity: 0.7 }}>
+                        <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
+                        <div style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{p.name}</div>
+                        <span className="fm-num" style={{ fontSize: 16, color: "var(--card-red)" }}>{s.played}'</span>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1781,7 +1828,7 @@ function TimelineRow({ ev, playerById }) {
   );
 }
 
-function SlotActionSheet({ actionSlot, match, formation, playerById, bench, ordering, now, onGoal, onSimple, onCard, onSub, onMove, onAddPlayer, onClose }) {
+function SlotActionSheet({ actionSlot, match, formation, playerById, bench, ordering, timeStats, now, onGoal, onSimple, onCard, onSub, onMove, onAddPlayer, onClose }) {
   const [mode, setMode] = useState("menu"); // menu | assist | sub | move
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -1790,7 +1837,8 @@ function SlotActionSheet({ actionSlot, match, formation, playerById, bench, orde
   const slot = formation.slots.find((s) => s.id === slotId);
   const player = playerId ? playerById[playerId] : null;
   const min = currentMinute(match, now);
-  const minutesPlayed = playerId ? minutesForPlayer(match, playerId, min) : 0;
+  const pStats = playerId ? (timeStats && timeStats[playerId]) : null;
+  const minutesPlayed = pStats ? pStats.played : (playerId ? minutesForPlayer(match, playerId, min) : 0);
 
   if (empty) {
     const canFill = canFillEmptySlot(match, formation);
@@ -1897,7 +1945,9 @@ function SlotActionSheet({ actionSlot, match, formation, playerById, bench, orde
           <div className="fm-sheet-head">
             <div>
               <div className="fm-sheet-title">Cambio: sale {lastNameShort(player.name)}</div>
-              <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>{minutesPlayed}' en el campo · entra el que más tiempo lleva esperando</div>
+              <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                {minutesPlayed}' jugados{pStats && pStats.sinceChange > 0 ? ` · ${pStats.sinceChange}' desde que entró` : ""} · entra el que más tiempo lleva esperando
+              </div>
             </div>
             <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
           </div>
@@ -1908,8 +1958,13 @@ function SlotActionSheet({ actionSlot, match, formation, playerById, bench, orde
             {(ordering ? ordering.bench : (bench || []).map((player) => ({ player, minutes: 0 }))).map(({ player: p, minutes }) => (
               <div key={p.id} className="fm-picker-row" onClick={() => onSub(slotId, playerId, p.id)}>
                 <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
-                <div style={{ flex: 1, fontWeight: 700, fontSize: 14.5 }}>{p.name}</div>
-                <span className="fm-num" style={{ fontSize: 17, color: "var(--ink-soft)" }}>{minutes}'</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14.5 }}>{p.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>
+                    {timeStats && timeStats[p.id] && timeStats[p.id].played > 0 ? `${timeStats[p.id].played}' jugados · ` : ""}{minutes}' en el banquillo
+                  </div>
+                </div>
+                <span className="fm-num" style={{ fontSize: 17, color: "var(--accent-sky)" }}>{timeStats && timeStats[p.id] ? timeStats[p.id].bench : minutes}'</span>
               </div>
             ))}
           </div>
@@ -1954,7 +2009,10 @@ function SlotActionSheet({ actionSlot, match, formation, playerById, bench, orde
         <div className="fm-sheet-head">
           <div>
             <div className="fm-sheet-title">{player.name}</div>
-            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>{ROLE_LABEL[slot.role]} · {minutesPlayed}' jugados</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              {ROLE_LABEL[slot.role]} · {minutesPlayed}' jugados
+              {pStats && pStats.sinceChange > 0 ? ` · ${pStats.sinceChange}' desde el último cambio` : ""}
+            </div>
           </div>
           <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
         </div>
@@ -2292,11 +2350,12 @@ function TemporadaTab({ history, squad }) {
     history.forEach((m) => {
       const playedIds = new Set();
       const finalMin = m.finalMinute || currentMinute(m, Date.now());
+      const capMin = (m.halfMinutes || 25) * 2;
       Object.entries(m.intervals || {}).forEach(([pid, intervals]) => {
         if (!map[pid]) map[pid] = emptyStat(playerById[pid] || { name: "Desconocido", number: "?" });
         intervals.forEach((iv) => {
           const end = iv.end == null ? finalMin : iv.end;
-          const dur = Math.max(0, end - iv.start);
+          const dur = clippedDuration(iv.start, end, m.halfMinutes || 25, capMin);
           if (dur > 0) playedIds.add(pid);
           map[pid].minutos += dur;
           const role = iv.role && map[pid].minutosPorRol[iv.role] != null ? iv.role : "DEF";
