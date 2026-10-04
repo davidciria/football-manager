@@ -108,9 +108,13 @@ describe("minuto efectivo (sin descuento)", () => {
     const m = { phase: "h1", halfMinutes: 25, h1Seconds: 27 * 60, h2Seconds: 0, runningSince: null };
     expect(effectiveMinute(m, 0)).toBe(25); // 27 reales -> 25 efectivos
   });
-  it("la 2a parte empieza en halfMin y capa igual", () => {
-    const m = { phase: "h2", halfMinutes: 25, h1Seconds: 0, h2Seconds: 27 * 60, runningSince: null };
+  it("la 2a parte arranca desde el fin real de la 1a y capa igual", () => {
+    const m = { phase: "h2", halfMinutes: 25, h1Seconds: 25 * 60, h2Seconds: 27 * 60, runningSince: null };
     expect(effectiveMinute(m, 0)).toBe(50); // 25 + 25 capados
+  });
+  it("si la 1a parte se corto antes, la 2a arranca desde ahi (sin hueco de descanso)", () => {
+    const m = { phase: "h2", halfMinutes: 25, h1Seconds: 8 * 60, h2Seconds: 5 * 60, runningSince: null };
+    expect(effectiveMinute(m, 0)).toBe(13); // 8 + 5
   });
   it("durante la 1a parte cuenta los minutos reales hasta el limite", () => {
     const m = { phase: "h1", halfMinutes: 25, h1Seconds: 10 * 60, h2Seconds: 0, runningSince: null };
@@ -170,6 +174,13 @@ describe("tiempos por jugador (jugado, banquillo, desde el ultimo cambio)", () =
     const s = playerTimeStats(m, squad, 0);
     expect(s.p1.played).toBe(25); // capado a 25
     expect(s.p9.bench).toBe(25);
+  });
+
+  it("al ir a descanso pronto, no marca 25 minutos (bug reportado)", () => {
+    const m = make({ phase: "descanso", h1Seconds: 30, h2Seconds: 0 });
+    const s = playerTimeStats(m, squad, 0);
+    expect(s.p1.played).toBe(0); // 0:30 jugados -> 0', NO 25'
+    expect(s.p9.bench).toBe(0);
   });
 
   it("durante el descanso no suma minutos a nadie", () => {

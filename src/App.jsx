@@ -14,7 +14,7 @@ import {
   logCard, applySubstitution, changeFormation, subOrdering,
   initialLineupOf, outPlayers, canFillEmptySlot, onFieldCount, redCount, yellowCount,
   finalizeIntervals, eventsByMinute, halfElapsedSeconds, currentMinute, timerDisplay,
-  effectiveMinute, playerTimeStats, clippedDuration,
+  effectiveMinute, playerTimeStats, clippedDuration, firstHalfBase,
 } from "./matchLogic.js";
 
 /* ============================================================================
@@ -2352,12 +2352,13 @@ function TemporadaTab({ history, squad }) {
     history.forEach((m) => {
       const playedIds = new Set();
       const finalMin = m.finalMinute || currentMinute(m, Date.now());
-      const capMin = (m.halfMinutes || 25) * 2;
+      const h1Base = firstHalfBase(m);
+      const capMin = h1Base + (m.halfMinutes || 25);
       Object.entries(m.intervals || {}).forEach(([pid, intervals]) => {
         if (!map[pid]) map[pid] = emptyStat(playerById[pid] || { name: "Desconocido", number: "?" });
         intervals.forEach((iv) => {
           const end = iv.end == null ? finalMin : iv.end;
-          const dur = clippedDuration(iv.start, end, m.halfMinutes || 25, capMin);
+          const dur = clippedDuration(iv.start, end, m.halfMinutes || 25, capMin, h1Base);
           if (dur > 0) playedIds.add(pid);
           map[pid].minutos += dur;
           const role = iv.role && map[pid].minutosPorRol[iv.role] != null ? iv.role : "DEF";

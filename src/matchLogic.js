@@ -330,13 +330,15 @@ export function halfElapsedSeconds(match, now) {
   return { h1, h2 };
 }
 
-/* Minuto "global" (1..). La 2ª parte parte del minuto halfMin. */
+/* Minuto "global" mostrado/registrado (1-based en juego). La 2ª parte parte del
+   fin real de la 1ª parte (sin contar el descanso). */
 export function currentMinute(match, now) {
   const { h1, h2 } = halfElapsedSeconds(match, now);
   const halfMin = match.halfMinutes || 25;
-  if (match.phase === "h1") return Math.floor(h1 / 60) + 1;
-  if (match.phase === "descanso") return halfMin;
-  if (match.phase === "h2" || match.phase === "finalizado") return halfMin + Math.floor(h2 / 60) + 1;
+  const base = firstHalfBase(match);
+  if (match.phase === "h1") return Math.floor(Math.min(h1, halfMin * 60) / 60) + 1;
+  if (match.phase === "descanso") return base;
+  if (match.phase === "h2" || match.phase === "finalizado") return base + Math.floor(Math.min(h2, halfMin * 60) / 60) + 1;
   return 0;
 }
 
@@ -362,32 +364,52 @@ export function timerDisplay(match, now) {
 
 /* Minuto EFECTIVO 1..(2*halfMin), sin contar los minutos de descuento.
    Si una parte se pasó de halfMin, se capa a halfMin (esos extra no cuentan
-   para los minutos jugados). Se usa para atribuir tiempos a jugadores. */
+   para los minutos jugados). Se usa para atribuir tiempos a jugadores.
+   En el descanso devuelve el minuto REAL al que se llegó en la 1ª parte
+   (no halfMin), para no inflar los minutos jugados. */
 export function effectiveMinute(match, now) {
   const { h1, h2 } = halfElapsedSeconds(match, now);
   const halfMin = match.halfMinutes || 25;
-  const capH1 = Math.min(h1, halfMin * 60);
-  const capH2 = Math.min(h2, halfMin * 60);
-  if (match.phase === "h1") return Math.floor(capH1 / 60);
-  if (match.phase === "descanso") return halfMin;
-  if (match.phase === "h2" || match.phase === "finalizado") return halfMin + Math.floor(capH2 / 60);
+  const base = firstHalfBase(match);
+  if (match.phase === "h1") return Math.floor(Math.min(h1, halfMin * 60) / 60);
+  if (match.phase === "descanso") return base;
+  if (match.phase === "h2" || match.phase === "finalizado") {
+    return base + Math.floor(Math.min(h2, halfMin * 60) / 60);
+  }
   return 0;
 }
 
 /* Duración efectiva de un tramo [start,end] recortada a las partes del partido
-   (1ª: 0..halfMin, 2ª: halfMin..2*halfMin) y al minuto final efectivo `cap`.
+   (1ª: 0..h1Base, 2ª: h1Base..h1Base+halfMin) y al minuto final efectivo `cap`.
    Excluye el descanso y los minutos de descuento. */
-export function clippedDuration(start, end, halfMin, cap) {
+export function clippedDuration(start, end, halfMin, cap, h1Base) {
   const half = halfMin || 25;
+  const base = h1Base == null ? half : h1Base;
   const clampedEnd = Math.min(end, cap);
   if (clampedEnd <= start) return 0;
   let total = 0;
-  const s1 = Math.min(start, half);
-  const e1 = Math.min(clampedEnd, half);
+  // Parte 1: 0..base
+  const s1 = Math.min(start, base);
+  const e1 = Math.min(clampedEnd, base);
   if (e1 > s1) total += e1 - s1;
-  const s2 = Math.max(start, half);
+  // Parte 2: base..base+half
+  const s2 = Math.max(start, base);
   if (clampedEnd > s2) total += clampedEnd - s2;
   return total;
+}
+
+/* Minuto efectivo en que terminó la 1ª parte (base desde la que arranca la 2ª).
+   Si la 1ª parte se jugó completa, es halfMin; si se cortó antes, el minuto real.
+   En partidos antiguos sin h1Seconds registrado se asume la parte completa. */
+export function firstHalfBase(match) {
+  const halfMin = match.halfMinutes || 25;
+  const h1 = match.h1Seconds;
+  if (!h1) {
+    // Sin dato de 1ª parte: en un partido ya finalizado asumimos media completa;
+    // en juego (descanso/2ª parte) si es 0 significa que no se jugó nada.
+    return match.phase === "finalizado" ? halfMin : 0;
+  }
+  return Math.min(Math.floor(h1 / 60), halfMin);
 }
 
 /* Tiempo por jugador con el minuto EFECTIVO (sin descuento y sin descanso):
@@ -400,14 +422,9 @@ export function clippedDuration(start, end, halfMin, cap) {
 export function playerTimeStats(match, squad, now) {
   const eff = effectiveMinute(match, now);
   const halfMin = match.halfMinutes || 25;
+  const h1Base = firstHalfBase(match);
   const ejected = outPlayers(match);
   const onField = new Set(Object.values(match.lineup || {}));
-
-  // Tiempo "de descanso" transcurrido entre partes (excluido del cómputo).
-  // Se calcula como el hueco entre el fin de la 1ª parte y el inicio de la 2ª
-  // en la escala de minutos de partido, que ya no existe: la 2ª parte empieza
-  // en halfMin. No hay que restarlo porque los tramos se miden en minutos de
-  // partido, pero lo dejamos explícito: el descanso no genera tramo alguno.
 
   const result = {};
   for (const p of squad) {
@@ -415,7 +432,7 @@ export function playerTimeStats(match, squad, now) {
     let played = 0;
     for (const iv of intervals) {
       const end = iv.end == null ? eff : iv.end;
-      played += clippedDuration(iv.start, end, halfMin, eff);
+      played += clippedDuration(iv.start, end, halfMin, eff, h1Base);
     }
     const isOn = onField.has(p.id);
     const isEjected = ejected.has(p.id);
