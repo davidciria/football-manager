@@ -708,12 +708,6 @@ export default function App({ user = null, team = null, onLogout = null, onSwitc
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      {readOnly && (
-        <div className="fm-readonly-bar">
-          Solo lectura · {team?.name} — pide permisos de edición al propietario
-        </div>
-      )}
-
       <div className="fm-scroll">
         {tab === "partido" && (
           <PartidoTab
@@ -729,16 +723,17 @@ export default function App({ user = null, team = null, onLogout = null, onSwitc
             onDiscardMatch={discardMatch}
             onAddPlayer={addSquadPlayer}
             showToast={showToast}
+            readOnly={readOnly}
           />
         )}
         {tab === "plantilla" && (
-          <PlantillaTab squad={squad} onChange={updateSquad} showToast={showToast} />
+          <PlantillaTab squad={squad} onChange={updateSquad} showToast={showToast} readOnly={readOnly} />
         )}
         {tab === "pizarra" && (
-          <PizarraTab squad={squad} boards={boards} onChange={updateBoards} showToast={showToast} />
+          <PizarraTab squad={squad} boards={boards} onChange={updateBoards} showToast={showToast} readOnly={readOnly} />
         )}
         {tab === "historial" && (
-          <HistorialTab history={history} squad={squad} onDelete={deleteFromHistory} onUpdateMatch={updateMatchInHistory} showToast={showToast} />
+          <HistorialTab history={history} squad={squad} onDelete={deleteFromHistory} onUpdateMatch={updateMatchInHistory} showToast={showToast} readOnly={readOnly} />
         )}
         {tab === "temporada" && (
           <TemporadaTab history={history} squad={squad} />
@@ -859,20 +854,16 @@ function SettingsModal({ settings, onSave, onClose, user, team, readOnly, onLogo
               )}
             </div>
           )}
-          <div style={{ marginBottom: 8 }}>
-            <span className="fm-label">Duración de cada parte (minutos)</span>
-            <input
-              className="fm-input"
-              type="number"
-              inputMode="numeric"
-              value={halfMinutes}
-              onChange={(e) => setHalfMinutes(Math.max(1, parseInt(e.target.value || "0", 10)))}
-              disabled={readOnly}
-            />
-          </div>
-          {readOnly && (
-            <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.5 }}>
-              Tienes permiso de <b>solo lectura</b> en este equipo. Pide al propietario que te ascienda a editor para poder modificar.
+          {!readOnly && (
+            <div style={{ marginBottom: 8 }}>
+              <span className="fm-label">Duración de cada parte (minutos)</span>
+              <input
+                className="fm-input"
+                type="number"
+                inputMode="numeric"
+                value={halfMinutes}
+                onChange={(e) => setHalfMinutes(Math.max(1, parseInt(e.target.value || "0", 10)))}
+              />
             </div>
           )}
           {user && (
@@ -906,15 +897,17 @@ function SettingsModal({ settings, onSave, onClose, user, team, readOnly, onLogo
    PLANTILLA TAB
 ============================================================================ */
 
-function PlantillaTab({ squad, onChange, showToast }) {
+function PlantillaTab({ squad, onChange, showToast, readOnly }) {
   const [editing, setEditing] = useState(null); // player object or "new"
 
   const addPlayer = () => {
+    if (readOnly) return;
     const nextNum = (Math.max(0, ...squad.map((p) => p.number)) || 0) + 1;
     setEditing({ id: null, name: "", number: nextNum, guest: false });
   };
 
   const savePlayer = (player) => {
+    if (readOnly) return;
     if (!player.name.trim()) { showToast("Ponle un nombre al jugador"); return; }
     if (player.id) {
       onChange(squad.map((p) => (p.id === player.id ? player : p)));
@@ -927,6 +920,7 @@ function PlantillaTab({ squad, onChange, showToast }) {
   };
 
   const removePlayer = (id) => {
+    if (readOnly) return;
     onChange(squad.filter((p) => p.id !== id));
     setEditing(null);
     showToast("Jugador eliminado");
@@ -941,20 +935,22 @@ function PlantillaTab({ squad, onChange, showToast }) {
         <span className="fm-h2" style={{ margin: 0 }}>
           {squad.length} jugadores{guestCount > 0 ? ` · ${guestCount} invitado${guestCount > 1 ? "s" : ""}` : ""}
         </span>
-        <button className="fm-btn fm-btn-primary fm-btn-sm" onClick={addPlayer}>
-          <Plus size={15} /> Añadir
-        </button>
+        {!readOnly && (
+          <button className="fm-btn fm-btn-primary fm-btn-sm" onClick={addPlayer}>
+            <Plus size={15} /> Añadir
+          </button>
+        )}
       </div>
 
       <div>
         {sorted.map((p) => (
-          <div className="fm-list-row" key={p.id} onClick={() => setEditing(p)}>
+          <div className="fm-list-row" key={p.id} onClick={() => !readOnly && setEditing(p)} style={readOnly ? { cursor: "default" } : undefined}>
             <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: 14.5 }}>{p.name}</div>
             </div>
             {p.guest && <span className="fm-guest-tag">Invitado</span>}
-            <Pencil size={15} color="var(--ink-faint)" />
+            {!readOnly && <Pencil size={15} color="var(--ink-faint)" />}
           </div>
         ))}
       </div>
@@ -963,11 +959,11 @@ function PlantillaTab({ squad, onChange, showToast }) {
         <div className="fm-empty">
           <Users size={34} />
           <div className="fm-empty-title">Sin jugadores todavía</div>
-          <div className="fm-empty-text">Añade tu plantilla para empezar a montar alineaciones.</div>
+          {!readOnly && <div className="fm-empty-text">Añade tu plantilla para empezar a montar alineaciones.</div>}
         </div>
       )}
 
-      {editing && (
+      {!readOnly && editing && (
         <PlayerEditSheet
           player={editing}
           onSave={savePlayer}
@@ -1050,7 +1046,7 @@ function PartidoTab(props) {
 
 /* ---------- Setup ---------- */
 
-function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settings, onStartMatch, onAddPlayer, showToast }) {
+function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settings, onStartMatch, onAddPlayer, showToast, readOnly }) {
   const [formationKey, setFormationKey] = useState("1-2-3-1");
   const [lineup, setLineup] = useState({});
   const [opponent, setOpponent] = useState("");
@@ -1133,7 +1129,7 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
       <span className="fm-label">FORMACIÓN</span>
       <div className="fm-formations">
         {Object.keys(FORMATIONS).map((key) => (
-          <button key={key} className={`fm-formation-opt ${formationKey === key ? "active" : ""}`} onClick={() => applyFormation(key)}>
+          <button key={key} className={`fm-formation-opt ${formationKey === key ? "active" : ""}`} onClick={() => !readOnly && applyFormation(key)} disabled={readOnly}>
             <span className="fm-num">{key}</span>
           </button>
         ))}
@@ -1145,7 +1141,7 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
           const playerId = lineup[slot.id];
           const player = squad.find((p) => p.id === playerId);
           return (
-            <button key={slot.id} className="fm-slot" style={{ left: `${slot.x}%`, top: `${slot.y}%` }} onClick={() => setPickerSlot(slot.id)}>
+            <button key={slot.id} className="fm-slot" style={{ left: `${slot.x}%`, top: `${slot.y}%` }} onClick={() => !readOnly && setPickerSlot(slot.id)} disabled={readOnly}>
               <div className={`fm-slot-badge ${player ? "filled" : ""}`}>
                 {player ? <span className="fm-num">{player.number}</span> : <Plus size={18} className="fm-slot-empty-icon" />}
               </div>
@@ -1157,7 +1153,7 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
 
       <div className="fm-row" style={{ margin: "12px 0 20px" }}>
         <span style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{filledCount} de {formation.slots.length} posiciones cubiertas</span>
-        <button className="fm-btn fm-btn-ghost fm-btn-sm" onClick={() => setTplListOpen(true)}>Alineaciones guardadas</button>
+        {!readOnly && <button className="fm-btn fm-btn-ghost fm-btn-sm" onClick={() => setTplListOpen(true)}>Alineaciones guardadas</button>}
       </div>
 
       <div style={{ marginBottom: 16 }}>
@@ -1174,29 +1170,33 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
         ) : <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>Todos en el campo</div>}
       </div>
 
-      <div style={{ marginBottom: 14 }}>
-        <span className="fm-label">Rival</span>
-        <input className="fm-input" value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder="Nombre del equipo rival" />
-      </div>
-      <div className="fm-field-row" style={{ marginBottom: 22 }}>
-        <div>
-          <span className="fm-label"><CalendarDays size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Fecha</span>
-          <input className="fm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </div>
-        <div>
-          <span className="fm-label"><MapPin size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Lugar (opcional)</span>
-          <input className="fm-input" value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Campo" />
-        </div>
-      </div>
+      {!readOnly && (
+        <>
+          <div style={{ marginBottom: 14 }}>
+            <span className="fm-label">Rival</span>
+            <input className="fm-input" value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder="Nombre del equipo rival" />
+          </div>
+          <div className="fm-field-row" style={{ marginBottom: 22 }}>
+            <div>
+              <span className="fm-label"><CalendarDays size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Fecha</span>
+              <input className="fm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div>
+              <span className="fm-label"><MapPin size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Lugar (opcional)</span>
+              <input className="fm-input" value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Campo" />
+            </div>
+          </div>
 
-      <button className="fm-btn fm-btn-ghost fm-btn-block" style={{ marginBottom: 10 }} onClick={() => setSaveTplOpen(true)} disabled={filledCount === 0}>
-        Guardar esta alineación como plantilla
-      </button>
-      <button className="fm-btn fm-btn-primary fm-btn-block" onClick={handleStart}>
-        <Play size={17} /> Iniciar partido
-      </button>
+          <button className="fm-btn fm-btn-ghost fm-btn-block" style={{ marginBottom: 10 }} onClick={() => setSaveTplOpen(true)} disabled={filledCount === 0}>
+            Guardar esta alineación como plantilla
+          </button>
+          <button className="fm-btn fm-btn-primary fm-btn-block" onClick={handleStart}>
+            <Play size={17} /> Iniciar partido
+          </button>
+        </>
+      )}
 
-      {pickerSlot && (
+      {!readOnly && pickerSlot && (
         <SlotPickerSheet
           slot={formation.slots.find((s) => s.id === pickerSlot)}
           squad={squad}
@@ -1209,7 +1209,7 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
         />
       )}
 
-      {saveTplOpen && (
+      {!readOnly && saveTplOpen && (
         <SaveTemplateSheet
           onSave={(name) => {
             onSaveTemplate({ id: uid("tpl"), name, formation: formationKey, lineup });
@@ -1220,7 +1220,7 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
         />
       )}
 
-      {tplListOpen && (
+      {!readOnly && tplListOpen && (
         <TemplateListSheet
           templates={templates}
           onLoad={loadTemplate}
@@ -1360,7 +1360,7 @@ function TemplateListSheet({ templates, onLoad, onDelete, onClose }) {
 
 /* ---------- Live match ---------- */
 
-function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMatch, onAddPlayer, showToast }) {
+function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMatch, onAddPlayer, showToast, readOnly }) {
   const [now, setNow] = useState(Date.now());
   const [actionSlot, setActionSlot] = useState(null);
   const [finishOpen, setFinishOpen] = useState(false);
@@ -1539,24 +1539,28 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
           <div className="fm-sb-score">
             <span className="fm-num">{goalsFor}</span><span className="vs">–</span><span className="fm-num">{activeMatch.rivalGoals}</span>
           </div>
-          <button className="fm-play-btn" onClick={togglePlay} disabled={activeMatch.phase === "finalizado"}>
-            {activeMatch.phase === "descanso" ? <Play size={22} /> : isRunning ? <Pause size={22} /> : <Play size={22} />}
-          </button>
+          {!readOnly && (
+            <button className="fm-play-btn" onClick={togglePlay} disabled={activeMatch.phase === "finalizado"}>
+              {activeMatch.phase === "descanso" ? <Play size={22} /> : isRunning ? <Pause size={22} /> : <Play size={22} />}
+            </button>
+          )}
           <div className="fm-sb-timer">
             <span className="fm-num">{timer.main}</span>
             {timer.added && <span className="added">{timer.added}</span>}
           </div>
         </div>
         <div className="fm-sb-controls">
-          <div className="fm-sb-rival">
-            <span style={{ fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 700, marginRight: 2 }}>Rival</span>
-            <button className="fm-round-btn" onClick={() => rivalGoal(-1)}><Minus size={14} /></button>
-            <button className="fm-round-btn" onClick={() => rivalGoal(1)}><Plus size={14} /></button>
-          </div>
-          {activeMatch.phase === "h1" && <button className="fm-chip" onClick={goToHalftime}><Pause size={13} /> Descanso</button>}
-          <button className="fm-chip" onClick={() => setFormationOpen(true)}><Shirt size={14} /> {activeMatch.formation}</button>
+          {!readOnly && (
+            <div className="fm-sb-rival">
+              <span style={{ fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 700, marginRight: 2 }}>Rival</span>
+              <button className="fm-round-btn" onClick={() => rivalGoal(-1)}><Minus size={14} /></button>
+              <button className="fm-round-btn" onClick={() => rivalGoal(1)}><Plus size={14} /></button>
+            </div>
+          )}
+          {!readOnly && activeMatch.phase === "h1" && <button className="fm-chip" onClick={goToHalftime}><Pause size={13} /> Descanso</button>}
+          {!readOnly && <button className="fm-chip" onClick={() => setFormationOpen(true)}><Shirt size={14} /> {activeMatch.formation}</button>}
           <button className="fm-chip" onClick={() => setOrderOpen(true)}><ArrowLeftRight size={14} /> Cambios</button>
-          <button className="fm-chip" onClick={() => setNotesOpen(true)}><PenLine size={14} /> Notas</button>
+          {!readOnly && <button className="fm-chip" onClick={() => setNotesOpen(true)}><PenLine size={14} /> Notas</button>}
         </div>
       </div>
 
@@ -1574,7 +1578,7 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
             const pid = activeMatch.lineup[slot.id];
             const player = playerById[pid];
             return (
-              <button key={slot.id} className="fm-slot" style={{ left: `${slot.x}%`, top: `${slot.y}%` }} onClick={() => openSlotAction(slot.id)}>
+              <button key={slot.id} className="fm-slot" style={{ left: `${slot.x}%`, top: `${slot.y}%` }} onClick={() => !readOnly && openSlotAction(slot.id)} disabled={readOnly}>
                 <div className={`fm-slot-badge ${player ? "filled" : ""}`}>
                   {player ? <span className="fm-num">{player.number}</span> : <Plus size={18} className="fm-slot-empty-icon" />}
                 </div>
@@ -1611,16 +1615,18 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
         {activeMatch.events.length === 0 && <div style={{ fontSize: 12.5, color: "var(--ink-faint)", padding: "10px 0" }}>Todavía no hay eventos.</div>}
       </div>
 
-      <div className="fm-section" style={{ paddingTop: 4 }}>
-        <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => setFinishOpen(true)}>
-          <Trophy size={17} /> Finalizar partido
-        </button>
-        <button className="fm-btn fm-btn-ghost fm-btn-block" style={{ marginTop: 8 }} onClick={() => setDiscardConfirm(true)}>
-          Descartar partido
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="fm-section" style={{ paddingTop: 4 }}>
+          <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => setFinishOpen(true)}>
+            <Trophy size={17} /> Finalizar partido
+          </button>
+          <button className="fm-btn fm-btn-ghost fm-btn-block" style={{ marginTop: 8 }} onClick={() => setDiscardConfirm(true)}>
+            Descartar partido
+          </button>
+        </div>
+      )}
 
-      {actionSlot && (
+      {!readOnly && actionSlot && (
         <SlotActionSheet
           actionSlot={actionSlot}
           match={activeMatch}
@@ -2171,7 +2177,7 @@ function FinishMatchModal({ match, goalsFor, playerById, onConfirm, onClose }) {
    HISTORIAL TAB
 ============================================================================ */
 
-function HistorialTab({ history, squad, onDelete, onUpdateMatch, showToast }) {
+function HistorialTab({ history, squad, onDelete, onUpdateMatch, showToast, readOnly }) {
   const [openMatchId, setOpenMatchId] = useState(null);
   const playerById = useMemo(() => Object.fromEntries(squad.map((p) => [p.id, p])), [squad]);
   const openMatch = history.find((m) => m.id === openMatchId) || null;
@@ -2216,6 +2222,7 @@ function HistorialTab({ history, squad, onDelete, onUpdateMatch, showToast }) {
           onUpdateVotes={(votes) => onUpdateMatch(openMatch.id, (m) => ({ ...m, mvpVotes: votes }))}
           onDelete={() => { onDelete(openMatch.id); setOpenMatchId(null); showToast("Partido eliminado"); }}
           onClose={() => setOpenMatchId(null)}
+          readOnly={readOnly}
         />
       )}
     </div>
@@ -2248,7 +2255,7 @@ function buildShareText(match, playerById) {
   return text;
 }
 
-function MatchDetailSheet({ match, playerById, onUpdateVotes, onDelete, onClose }) {
+function MatchDetailSheet({ match, playerById, onUpdateVotes, onDelete, onClose, readOnly }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const goalsFor = match.events.filter((e) => e.type === "gol").length;
   const formation = FORMATIONS[match.formation];
@@ -2300,12 +2307,34 @@ function MatchDetailSheet({ match, playerById, onUpdateVotes, onDelete, onClose 
 
           <div style={{ marginTop: 8, marginBottom: 8 }}>
             <span className="fm-label"><Star size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Votación MVP</span>
-            <MvpVoting
-              playerIds={Object.keys(match.intervals || {})}
-              playerById={playerById}
-              votes={match.mvpVotes || {}}
-              onChange={onUpdateVotes}
-            />
+            {readOnly ? (
+              (() => {
+                const votes = match.mvpVotes || {};
+                const total = Object.values(votes).reduce((a, b) => a + b, 0);
+                if (total === 0) return <div className="fm-empty-text" style={{ padding: "8px 0" }}>Sin votos.</div>;
+                const max = Math.max(...Object.values(votes));
+                const rows = Object.entries(votes)
+                  .filter(([, v]) => v > 0)
+                  .sort((a, b) => b[1] - a[1]);
+                return rows.map(([pid, v]) => (
+                  <div key={pid} className="fm-mvp-row">
+                    <div className="fm-shirt"><span className="fm-num">{playerById[pid]?.number ?? "?"}</span></div>
+                    <div style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>
+                      {playerById[pid]?.name || "—"}
+                      {v === max && <Star size={13} color="var(--accent-amber)" style={{ marginLeft: 6, verticalAlign: -2 }} fill="var(--accent-amber)" />}
+                    </div>
+                    <span className="fm-mvp-count">{v}</span>
+                  </div>
+                ));
+              })()
+            ) : (
+              <MvpVoting
+                playerIds={Object.keys(match.intervals || {})}
+                playerById={playerById}
+                votes={match.mvpVotes || {}}
+                onChange={onUpdateVotes}
+              />
+            )}
           </div>
 
           {match.notes && (
@@ -2317,13 +2346,15 @@ function MatchDetailSheet({ match, playerById, onUpdateVotes, onDelete, onClose 
         </div>
         <div className="fm-sheet-actions">
           <button className="fm-btn fm-btn-primary fm-btn-block" onClick={share}><Share2 size={16} /> Compartir resumen</button>
-          {confirmDelete ? (
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="fm-btn fm-btn-danger" style={{ flex: 1 }} onClick={onDelete}>Confirmar eliminación</button>
-              <button className="fm-btn fm-btn-ghost" style={{ flex: 1 }} onClick={() => setConfirmDelete(false)}>Cancelar</button>
-            </div>
-          ) : (
-            <button className="fm-btn fm-btn-ghost fm-btn-block" onClick={() => setConfirmDelete(true)}><Trash2 size={15} /> Eliminar partido</button>
+          {!readOnly && (
+            confirmDelete ? (
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="fm-btn fm-btn-danger" style={{ flex: 1 }} onClick={onDelete}>Confirmar eliminación</button>
+                <button className="fm-btn fm-btn-ghost" style={{ flex: 1 }} onClick={() => setConfirmDelete(false)}>Cancelar</button>
+              </div>
+            ) : (
+              <button className="fm-btn fm-btn-ghost fm-btn-block" onClick={() => setConfirmDelete(true)}><Trash2 size={15} /> Eliminar partido</button>
+            )
           )}
         </div>
       </div>
@@ -2650,7 +2681,7 @@ function drawStroke(ctx, w, h, stroke) {
   }
 }
 
-function PizarraTab({ squad, boards, onChange, showToast }) {
+function PizarraTab({ squad, boards, onChange, showToast, readOnly }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const [strokes, setStrokes] = useState([]);
@@ -2837,7 +2868,7 @@ function PizarraTab({ squad, boards, onChange, showToast }) {
         {dirty && <span style={{ fontSize: 11, color: "var(--accent-amber)", fontWeight: 700 }}>Sin guardar</span>}
       </div>
 
-      <div className="fm-board-toolbar">
+      <div className="fm-board-toolbar" style={readOnly ? { display: "none" } : undefined}>
         {tools.map((t) => (
           <button key={t.id} className={`fm-tool-btn ${tool === t.id ? "active" : ""}`} onClick={() => setTool(t.id)} aria-label={t.label}>
             <t.icon size={19} />
@@ -2847,13 +2878,15 @@ function PizarraTab({ squad, boards, onChange, showToast }) {
         <button className="fm-tool-btn" onClick={() => setClearConfirm(true)} aria-label="Borrar todo"><Trash2 size={19} /></button>
       </div>
 
-      <div className="fm-color-row">
-        {BOARD_COLORS.map((c) => (
-          <button key={c.id} className={`fm-color-dot ${color === c.value ? "active" : ""}`} style={{ background: c.value }} onClick={() => setColor(c.value)} aria-label={c.id} />
-        ))}
-      </div>
+      {!readOnly && (
+        <div className="fm-color-row">
+          {BOARD_COLORS.map((c) => (
+            <button key={c.id} className={`fm-color-dot ${color === c.value ? "active" : ""}`} style={{ background: c.value }} onClick={() => setColor(c.value)} aria-label={c.id} />
+          ))}
+        </div>
+      )}
 
-      {tool === "token" && (
+      {!readOnly && tool === "token" && (
         <div className="fm-token-row">
           <button className={`fm-token-chip ${selectedToken?.kind === "ball" ? "active" : ""}`} onClick={() => setSelectedToken({ kind: "ball", label: "" })}>
             <div className="fm-shirt" style={{ background: "#EAF4EE" }} />
@@ -2872,28 +2905,30 @@ function PizarraTab({ squad, boards, onChange, showToast }) {
         </div>
       )}
 
-      <div className="fm-board-wrap" ref={wrapRef} style={{ marginTop: 10 }}>
+      <div className="fm-board-wrap" ref={wrapRef} style={{ marginTop: 10, touchAction: readOnly ? "auto" : "none" }}>
         <canvas
           ref={canvasRef}
           className="fm-board-canvas"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerLeave={onPointerUp}
+          onPointerDown={readOnly ? undefined : onPointerDown}
+          onPointerMove={readOnly ? undefined : onPointerMove}
+          onPointerUp={readOnly ? undefined : onPointerUp}
+          onPointerLeave={readOnly ? undefined : onPointerUp}
         />
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <button className="fm-btn fm-btn-primary" style={{ flex: 1 }} onClick={() => setSaveOpen(true)}>
-          <Save size={16} /> Guardar
-        </button>
-        <button className="fm-btn fm-btn-ghost" style={{ flex: 1 }} onClick={() => setListOpen(true)}>
-          <FolderOpen size={16} /> Cargar
-        </button>
-        <button className="fm-btn fm-btn-ghost" style={{ flex: 1 }} onClick={startNewBoard}>
-          <Plus size={16} /> Nueva
-        </button>
-      </div>
+      {!readOnly && (
+        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+          <button className="fm-btn fm-btn-primary" style={{ flex: 1 }} onClick={() => setSaveOpen(true)}>
+            <Save size={16} /> Guardar
+          </button>
+          <button className="fm-btn fm-btn-ghost" style={{ flex: 1 }} onClick={() => setListOpen(true)}>
+            <FolderOpen size={16} /> Cargar
+          </button>
+          <button className="fm-btn fm-btn-ghost" style={{ flex: 1 }} onClick={startNewBoard}>
+            <Plus size={16} /> Nueva
+          </button>
+        </div>
+      )}
 
       {saveOpen && (
         <SaveBoardSheet initialName={boardId ? boardName : ""} onSave={saveBoard} onClose={() => setSaveOpen(false)} />
