@@ -3,20 +3,20 @@ import React, { useState } from "react";
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 .fm-auth{
-  --deep:#0E2019; --mid:#153A2C; --mid2:#1E4D3B; --line:#F2FAF5;
-  --soft:#A9CBBB; --faint:#7C9C8A; --amber:#F5B23F; --amber-ink:#3A2405;
-  --red:#FF5A4D; --hair:rgba(234,244,238,0.12); --hair2:rgba(234,244,238,0.26);
+  --deep:#0B1A14; --mid:#12291F; --mid2:#1B3D2F; --line:#F2FAF5;
+  --soft:#9DBFAF; --faint:#6F8F7E; --amber:#F5B23F; --amber-ink:#3A2405;
+  --red:#FF5A4D; --hair:rgba(234,244,238,0.10); --hair2:rgba(234,244,238,0.18);
   height:100vh; height:100dvh; width:100%; display:flex; align-items:center; justify-content:center;
   overflow-y:auto;
-  background:radial-gradient(1200px 600px at 50% -10%, var(--mid2), var(--deep) 60%);
+  background:radial-gradient(1200px 620px at 50% -12%, #17362A 0%, var(--deep) 58%);
   color:var(--line); font-family:'Manrope',system-ui,sans-serif;
   padding:calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
   box-sizing:border-box;
 }
 .fm-auth *{box-sizing:border-box;}
 .fm-auth-card{
-  width:100%; max-width:400px; margin:auto; background:linear-gradient(180deg,var(--mid),var(--deep));
-  border:1px solid var(--hair2); border-radius:22px; padding:28px 24px 24px;
+  width:100%; max-width:400px; margin:auto; background:var(--mid);
+  border:1px solid var(--hair2); border-radius:24px; padding:28px 24px 24px;
   box-shadow:0 24px 60px rgba(0,0,0,0.45);
 }
 .fm-auth-logo{
@@ -26,23 +26,23 @@ const CSS = `
   width:44px; height:44px; border-radius:14px; display:flex; align-items:center; justify-content:center;
   background:var(--amber); color:var(--amber-ink); font-size:24px;
 }
-.fm-auth-title{font-family:'Teko',sans-serif; font-weight:700; font-size:30px; line-height:0.95; letter-spacing:0.02em;}
+.fm-auth-title{font-family:'Teko',sans-serif; font-weight:600; font-size:30px; line-height:0.95; letter-spacing:0.01em;}
 .fm-auth-sub{font-size:12.5px; color:var(--soft); font-weight:600;}
 .fm-auth-h{font-size:19px; font-weight:800; margin:0 0 4px;}
 .fm-auth-p{font-size:13px; color:var(--soft); margin:0 0 18px; line-height:1.45;}
 .fm-field{margin-bottom:14px;}
-.fm-field label{display:block; font-size:12px; font-weight:700; color:var(--soft); margin-bottom:6px; letter-spacing:0.02em;}
+.fm-field label{display:block; font-size:11.5px; font-weight:800; color:var(--soft); margin-bottom:7px; letter-spacing:0.05em; text-transform:uppercase;}
 .fm-input{
   width:100%; padding:13px 14px; border-radius:12px; font-size:16px; font-family:inherit; font-weight:600;
-  background:#0A1812; border:1px solid var(--hair2); color:#FFFFFF; outline:none;
+  background:#0A1712; border:1px solid var(--hair2); color:#FFFFFF; outline:none; min-height:44px;
   transition:border-color .15s ease, box-shadow .15s ease;
 }
 .fm-input::placeholder{color:var(--faint);}
 .fm-input:focus{border-color:var(--amber); box-shadow:0 0 0 3px rgba(245,178,63,0.20);}
 .fm-auth-btn{
-  width:100%; margin-top:6px; padding:14px; border:none; border-radius:12px; cursor:pointer;
+  width:100%; margin-top:6px; padding:14px; border:none; border-radius:14px; cursor:pointer;
   background:var(--amber); color:var(--amber-ink); font-family:inherit; font-weight:800; font-size:15px;
-  display:flex; align-items:center; justify-content:center; gap:8px; min-height:48px;
+  display:flex; align-items:center; justify-content:center; gap:8px; min-height:50px;
   transition:transform .06s ease, filter .15s ease;
 }
 .fm-auth-btn:hover{filter:brightness(1.05);}
@@ -50,11 +50,11 @@ const CSS = `
 .fm-auth-btn:disabled{opacity:0.6; cursor:not-allowed;}
 .fm-auth-err{
   background:rgba(228,72,60,0.14); border:1px solid rgba(228,72,60,0.4); color:#FFC9C4;
-  border-radius:10px; padding:10px 12px; font-size:13px; font-weight:600; margin-bottom:14px;
+  border-radius:12px; padding:11px 13px; font-size:13px; font-weight:600; margin-bottom:14px;
 }
 .fm-auth-ok{
   background:rgba(79,169,232,0.14); border:1px solid rgba(79,169,232,0.4); color:#CFE9FF;
-  border-radius:10px; padding:10px 12px; font-size:13px; font-weight:600; margin-bottom:14px;
+  border-radius:12px; padding:11px 13px; font-size:13px; font-weight:600; margin-bottom:14px;
 }
 .fm-auth-toggle{margin-top:16px; text-align:center; font-size:13px; color:var(--soft);}
 .fm-auth-toggle button{

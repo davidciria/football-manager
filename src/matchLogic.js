@@ -10,8 +10,8 @@ export const FORMATIONS = {
   "1-2-3-1": {
     label: "1-2-3-1",
     slots: [
-      { id: "gk", role: "POR", x: 50, y: 90 },
-      { id: "d1", role: "DEF", x: 28, y: 70 }, { id: "d2", role: "DEF", x: 72, y: 70 },
+      { id: "gk", role: "POR", x: 50, y: 88 },
+      { id: "d1", role: "DEF", x: 28, y: 66 }, { id: "d2", role: "DEF", x: 72, y: 66 },
       { id: "m1", role: "MED", x: 18, y: 45 }, { id: "m2", role: "MED", x: 50, y: 45 }, { id: "m3", role: "MED", x: 82, y: 45 },
       { id: "f1", role: "DEL", x: 50, y: 17 },
     ],
@@ -19,8 +19,8 @@ export const FORMATIONS = {
   "1-3-2-1": {
     label: "1-3-2-1",
     slots: [
-      { id: "gk", role: "POR", x: 50, y: 90 },
-      { id: "d1", role: "DEF", x: 18, y: 70 }, { id: "d2", role: "DEF", x: 50, y: 70 }, { id: "d3", role: "DEF", x: 82, y: 70 },
+      { id: "gk", role: "POR", x: 50, y: 88 },
+      { id: "d1", role: "DEF", x: 18, y: 66 }, { id: "d2", role: "DEF", x: 50, y: 66 }, { id: "d3", role: "DEF", x: 82, y: 66 },
       { id: "m1", role: "MED", x: 30, y: 45 }, { id: "m2", role: "MED", x: 70, y: 45 },
       { id: "f1", role: "DEL", x: 50, y: 17 },
     ],
@@ -28,8 +28,8 @@ export const FORMATIONS = {
   "1-4-1-1": {
     label: "1-4-1-1",
     slots: [
-      { id: "gk", role: "POR", x: 50, y: 90 },
-      { id: "d1", role: "DEF", x: 13, y: 70 }, { id: "d2", role: "DEF", x: 38, y: 70 }, { id: "d3", role: "DEF", x: 62, y: 70 }, { id: "d4", role: "DEF", x: 87, y: 70 },
+      { id: "gk", role: "POR", x: 50, y: 88 },
+      { id: "d1", role: "DEF", x: 13, y: 66 }, { id: "d2", role: "DEF", x: 38, y: 66 }, { id: "d3", role: "DEF", x: 62, y: 66 }, { id: "d4", role: "DEF", x: 87, y: 66 },
       { id: "m1", role: "MED", x: 50, y: 45 },
       { id: "f1", role: "DEL", x: 50, y: 17 },
     ],
@@ -37,8 +37,8 @@ export const FORMATIONS = {
   "1-2-2-2": {
     label: "1-2-2-2",
     slots: [
-      { id: "gk", role: "POR", x: 50, y: 90 },
-      { id: "d1", role: "DEF", x: 28, y: 70 }, { id: "d2", role: "DEF", x: 72, y: 70 },
+      { id: "gk", role: "POR", x: 50, y: 88 },
+      { id: "d1", role: "DEF", x: 28, y: 66 }, { id: "d2", role: "DEF", x: 72, y: 66 },
       { id: "m1", role: "MED", x: 28, y: 45 }, { id: "m2", role: "MED", x: 72, y: 45 },
       { id: "f1", role: "DEL", x: 28, y: 17 }, { id: "f2", role: "DEL", x: 72, y: 17 },
     ],
@@ -46,8 +46,8 @@ export const FORMATIONS = {
   "1-3-1-2": {
     label: "1-3-1-2",
     slots: [
-      { id: "gk", role: "POR", x: 50, y: 90 },
-      { id: "d1", role: "DEF", x: 18, y: 70 }, { id: "d2", role: "DEF", x: 50, y: 70 }, { id: "d3", role: "DEF", x: 82, y: 70 },
+      { id: "gk", role: "POR", x: 50, y: 88 },
+      { id: "d1", role: "DEF", x: 18, y: 66 }, { id: "d2", role: "DEF", x: 50, y: 66 }, { id: "d3", role: "DEF", x: 82, y: 66 },
       { id: "m1", role: "MED", x: 50, y: 45 },
       { id: "f1", role: "DEL", x: 30, y: 17 }, { id: "f2", role: "DEL", x: 70, y: 17 },
     ],
@@ -55,8 +55,8 @@ export const FORMATIONS = {
   "1-2-1-3": {
     label: "1-2-1-3",
     slots: [
-      { id: "gk", role: "POR", x: 50, y: 90 },
-      { id: "d1", role: "DEF", x: 28, y: 70 }, { id: "d2", role: "DEF", x: 72, y: 70 },
+      { id: "gk", role: "POR", x: 50, y: 88 },
+      { id: "d1", role: "DEF", x: 28, y: 66 }, { id: "d2", role: "DEF", x: 72, y: 66 },
       { id: "m1", role: "MED", x: 50, y: 45 },
       { id: "f1", role: "DEL", x: 18, y: 17 }, { id: "f2", role: "DEL", x: 50, y: 17 }, { id: "f3", role: "DEL", x: 82, y: 17 },
     ],
@@ -67,6 +67,14 @@ let _idCounter = 0;
 function nid(prefix) {
   _idCounter += 1;
   return `${prefix}_${Date.now().toString(36)}${_idCounter}`;
+}
+
+/* Campos de minuto de un evento. `minute` es el minuto REAL (el que usan los
+   intervalos y las estadísticas); `displayMinute` es el minuto del reloj de
+   partido que se muestra al usuario (la 2ª parte arranca en el minuto de la
+   parte). Solo se añade `displayMinute` cuando difiere/es informado. */
+function evMinuteFields(minute, displayMinute) {
+  return displayMinute == null || displayMinute === minute ? { minute } : { minute, displayMinute };
 }
 
 /* Slot que ocupa un jugador (o null). */
@@ -138,30 +146,31 @@ export function initialLineupOf(match) {
    - azul directa: como la 2ª amarilla (sustitución obligatoria).
    Devuelve { match, needsSub, subSlotId }.
 --------------------------------------------------------------------------- */
-export function logCard(match, playerId, type, minute) {
+export function logCard(match, playerId, type, minute, eventMinute) {
   const events = [...(match.events || [])];
   let intervals = { ...(match.intervals || {}) };
   const lineup = { ...(match.lineup || {}) };
   const slotId = slotOfPlayer(match, playerId);
+  const stamp = evMinuteFields(minute, eventMinute);
   let needsSub = false;
   let subSlotId = null;
 
   if (type === "amarilla") {
     const prev = yellowCount(match, playerId);
-    events.push({ id: nid("ev"), minute, type: "amarilla", playerId });
+    events.push({ id: nid("ev"), ...stamp, type: "amarilla", playerId });
     if (prev >= 1) {
-      events.push({ id: nid("ev"), minute, type: "azul", playerId, reason: "doble_amarilla" });
+      events.push({ id: nid("ev"), ...stamp, type: "azul", playerId, reason: "doble_amarilla" });
       intervals = closeOpenInterval(intervals, playerId, minute);
       if (slotId) delete lineup[slotId];
       needsSub = true;
       subSlotId = slotId;
     }
   } else if (type === "roja") {
-    events.push({ id: nid("ev"), minute, type: "roja", playerId });
+    events.push({ id: nid("ev"), ...stamp, type: "roja", playerId });
     intervals = closeOpenInterval(intervals, playerId, minute);
     if (slotId) delete lineup[slotId];
   } else if (type === "azul") {
-    events.push({ id: nid("ev"), minute, type: "azul", playerId });
+    events.push({ id: nid("ev"), ...stamp, type: "azul", playerId });
     intervals = closeOpenInterval(intervals, playerId, minute);
     if (slotId) delete lineup[slotId];
     needsSub = true;
@@ -172,14 +181,14 @@ export function logCard(match, playerId, type, minute) {
 }
 
 /* Sustitución: sale outId (o nadie) y entra inId en el slot. */
-export function applySubstitution(match, { slotId, outId, inId, minute, role }) {
+export function applySubstitution(match, { slotId, outId, inId, minute, role, eventMinute }) {
   let intervals = { ...(match.intervals || {}) };
   if (outId) intervals = closeOpenInterval(intervals, outId, minute);
   intervals = { ...intervals, [inId]: [...(intervals[inId] || []), { start: minute, end: null, role }] };
   const lineup = { ...(match.lineup || {}), [slotId]: inId };
   const events = [
     ...(match.events || []),
-    { id: nid("ev"), minute, type: "cambio", playerOutId: outId || null, playerInId: inId, slotId },
+    { id: nid("ev"), ...evMinuteFields(minute, eventMinute), type: "cambio", playerOutId: outId || null, playerInId: inId, slotId },
   ];
   return { ...match, lineup, intervals, events };
 }
@@ -214,7 +223,7 @@ export function swapPlayers(match, slotA, slotB, minute) {
 
 /* Cambio de formación en vivo: reubica a los mismos jugadores en los nuevos
    slots por rol y actualiza sus intervalos si cambian de rol. */
-export function changeFormation(match, formationKey, minute) {
+export function changeFormation(match, formationKey, minute, eventMinute) {
   const newFormation = FORMATIONS[formationKey];
   if (!newFormation) return match;
   const oldFormation = FORMATIONS[match.formation];
@@ -251,9 +260,157 @@ export function changeFormation(match, formationKey, minute) {
 
   const events = [
     ...(match.events || []),
-    { id: nid("ev"), minute, type: "formacion", formation: formationKey },
+    { id: nid("ev"), ...evMinuteFields(minute, eventMinute), type: "formacion", formation: formationKey },
   ];
   return { ...match, formation: formationKey, lineup: result, intervals, events };
+}
+
+/* Formato de nota: { id, minute, text }. `minute` puede ser null cuando la
+   nota no está ligada a un momento concreto del partido. */
+
+/* Minuto al inicio de una línea de notas antiguas: "12'", "12’" o "min 12". */
+const LEGACY_MINUTE_RE = /^(\d{1,3})\s*(?:['’]|min(?:uto)?\.?)\s*[-:–]?\s*(.+)$/i;
+
+/* Tabla CP850 (DOS Latin-1) para los bytes 0x80-0xFF. Se usa para reparar
+   texto UTF-8 que fue leído por error como CP850 (mojibake), p. ej. "├│" -> "ó"
+   o "ÔÇÖ" -> "’". */
+const CP850_HIGH = [
+  0x00C7, 0x00FC, 0x00E9, 0x00E2, 0x00E4, 0x00E0, 0x00E5, 0x00E7, 0x00EA, 0x00EB, 0x00E8, 0x00EF, 0x00EE, 0x00EC, 0x00C4, 0x00C5,
+  0x00C9, 0x00E6, 0x00C6, 0x00F4, 0x00F6, 0x00F2, 0x00FB, 0x00F9, 0x00FF, 0x00D6, 0x00DC, 0x00F8, 0x00A3, 0x00D8, 0x00D7, 0x0192,
+  0x00E1, 0x00ED, 0x00F3, 0x00FA, 0x00F1, 0x00D1, 0x00AA, 0x00BA, 0x00BF, 0x00AE, 0x00AC, 0x00BD, 0x00BC, 0x00A1, 0x00AB, 0x00BB,
+  0x2591, 0x2592, 0x2593, 0x2502, 0x2524, 0x00C1, 0x00C2, 0x00C0, 0x00A9, 0x2563, 0x2551, 0x2557, 0x255D, 0x00A2, 0x00A5, 0x2510,
+  0x2514, 0x2534, 0x252C, 0x251C, 0x2500, 0x253C, 0x00E3, 0x00C3, 0x255A, 0x2554, 0x2569, 0x2566, 0x2560, 0x2550, 0x256C, 0x00A4,
+  0x00F0, 0x00D0, 0x00CA, 0x00CB, 0x00C8, 0x0131, 0x00CD, 0x00CE, 0x00CF, 0x2518, 0x250C, 0x2588, 0x2584, 0x00A6, 0x00CC, 0x2580,
+  0x00D3, 0x00DF, 0x00D4, 0x00D2, 0x00F5, 0x00D5, 0x00B5, 0x00FE, 0x00DE, 0x00DA, 0x00DB, 0x00D9, 0x00FD, 0x00DD, 0x00AF, 0x00B4,
+  0x00AD, 0x00B1, 0x2017, 0x00BE, 0x00B6, 0x00A7, 0x00F7, 0x00B8, 0x00B0, 0x00A8, 0x00B7, 0x00B9, 0x00B3, 0x00B2, 0x25A0, 0x00A0,
+];
+const CP850_REV = new Map(CP850_HIGH.map((cp, i) => [cp, 0x80 + i]));
+
+/* Repara mojibake UTF-8->CP850. Solo convierte una racha de caracteres CP850
+   si el resultado formado por sus bytes es UTF-8 válido; en caso contrario
+   mantiene el texto original (eran caracteres legítimos). */
+export function repairMojibake(str) {
+  const s = String(str);
+  let out = "";
+  let chars = [];
+  let bytes = [];
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  const flush = () => {
+    if (!chars.length) return;
+    try {
+      out += decoder.decode(new Uint8Array(bytes));
+    } catch {
+      out += chars.join("");
+    }
+    chars = [];
+    bytes = [];
+  };
+  for (const ch of s) {
+    const b = CP850_REV.get(ch.codePointAt(0));
+    if (b != null) { chars.push(ch); bytes.push(b); }
+    else { flush(); out += ch; }
+  }
+  flush();
+  return out;
+}
+
+/* Convierte el texto libre del formato antiguo (match.notes) en una lista de
+   notas con minuto. Cada línea se trata como una nota; si empieza por un
+   minuto reconocible se asocia a él. */
+function parseLegacyNotes(str) {
+  return String(str || "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, i) => {
+      const m = line.match(LEGACY_MINUTE_RE);
+      return {
+        id: `legacy_${i}`,
+        minute: m ? Math.min(120, parseInt(m[1], 10)) : null,
+        text: repairMojibake((m ? m[2] : line).trim()),
+      };
+    });
+}
+
+/* Notas del partido normalizadas.
+   Formato nuevo: match.notesLog = [{ id, minute, text }].
+   Formato antiguo: match.notes = string -> se parsea a la misma lista. */
+export function normalizeNotes(match) {
+  if (Array.isArray(match.notesLog)) {
+    return match.notesLog
+      .filter((n) => n && typeof n.text === "string")
+      .map((n) => ({ id: n.id, minute: n.minute ?? null, text: repairMojibake(n.text) }));
+  }
+  if (match.notes && String(match.notes).trim()) {
+    return parseLegacyNotes(match.notes);
+  }
+  return [];
+}
+
+/* Crea una entrada de nota (con minuto opcional). Devuelve null si está vacía. */
+export function newNote({ text, minute }) {
+  const clean = repairMojibake(String(text || "")).trim();
+  if (!clean) return null;
+  return {
+    id: "note_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    minute: minute == null || minute === "" ? null : minute,
+    text: clean,
+  };
+}
+
+/* Añade una nota (con minuto opcional) devolviendo el match actualizado. */
+export function addNote(match, { text, minute }) {
+  const entry = newNote({ text, minute });
+  if (!entry) return match;
+  const notesLog = [...(Array.isArray(match.notesLog) ? match.notesLog : normalizeNotes(match)), entry];
+  return { ...match, notesLog };
+}
+
+/* Borra una nota por id. */
+export function removeNote(match, id) {
+  const notesLog = (Array.isArray(match.notesLog) ? match.notesLog : normalizeNotes(match)).filter((n) => n.id !== id);
+  return { ...match, notesLog };
+}
+
+/* Notas ordenadas por minuto; las que no tienen minuto van al final,
+   conservando el orden de inserción. */
+export function notesByMinute(notes) {
+  return (notes || [])
+    .map((n, i) => ({ n, i }))
+    .sort((a, b) => {
+      const am = a.n.minute == null ? Infinity : a.n.minute;
+      const bm = b.n.minute == null ? Infinity : b.n.minute;
+      return am - bm || a.i - b.i;
+    })
+    .map(({ n }) => n);
+}
+
+/* Migra un partido al formato nuevo de notas: convierte `notes` (string
+   antiguo) en notesLog y elimina el campo antiguo. Devuelve el mismo objeto
+   si no hay nada que migrar. */
+export function migrateMatchNotes(match) {
+  if (!match || typeof match !== "object") return match;
+  if (Array.isArray(match.notesLog)) {
+    if (!("notes" in match)) return match;
+    const { notes, ...rest } = match;
+    return rest;
+  }
+  if (match.notes == null) return match;
+  const { notes, ...rest } = match;
+  const legacy = String(notes || "").trim();
+  return legacy ? { ...rest, notesLog: parseLegacyNotes(legacy) } : rest;
+}
+
+/* Migra la lista completa de partidos ya disputados. */
+export function migrateHistory(history) {
+  if (!Array.isArray(history)) return history;
+  let changed = false;
+  const next = history.map((m) => {
+    const migrated = migrateMatchNotes(m);
+    if (migrated !== m) changed = true;
+    return migrated;
+  });
+  return changed ? next : history;
 }
 
 /* Eventos de un partido ordenados por minuto (estable: conserva el orden de
@@ -282,6 +439,22 @@ export function cardTotals(events) {
   return map;
 }
 
+/* Minuto en que arrancó la racha continua en el campo que termina en el último
+   tramo (abierto) del jugador. Los cambios de ROL/posición parten el intervalo
+   (end de uno == start del siguiente) pero NO son un cambio de jugador: se unen. */
+function openFieldSpellStart(intervals) {
+  if (!intervals.length) return 0;
+  const last = intervals[intervals.length - 1];
+  if (last.end != null) return last.end;
+  let start = last.start;
+  for (let i = intervals.length - 2; i >= 0; i--) {
+    const prev = intervals[i];
+    if (prev.end != null && prev.end === start) start = prev.start;
+    else break;
+  }
+  return start;
+}
+
 /* Orden de cambios: quién lleva más tiempo en el campo y quién más en el banquillo.
    - field: ordenado por más tiempo continuo en el campo (primero el que más).
    - bench: ordenado por más tiempo esperando en el banquillo (primero el que más). */
@@ -293,8 +466,7 @@ export function subOrdering(match, squad, minute) {
   for (const p of squad) {
     const intervals = (match.intervals && match.intervals[p.id]) || [];
     if (onField.has(p.id)) {
-      const last = intervals[intervals.length - 1];
-      const since = last && last.end == null ? last.start : minute;
+      const since = openFieldSpellStart(intervals);
       field.push({ player: p, since, minutes: Math.max(0, minute - since) });
     } else if (!out.has(p.id)) {
       const last = intervals[intervals.length - 1];
@@ -358,58 +530,58 @@ export function halfElapsedSeconds(match, now) {
   return { h1, h2 };
 }
 
-/* Minuto "global" mostrado/registrado (1-based en juego). La 2ª parte parte del
-   fin real de la 1ª parte (sin contar el descanso). */
+/* Minuto "de partido" mostrado/registrado (1-based en juego). Es un reloj de
+   fútbol: la 2ª parte arranca SIEMPRE en el minuto de la parte (p. ej. 25 en
+   fútbol 7), sin importar lo que duró realmente la 1ª. Este minuto es solo para
+   mostrar/registrar eventos; los tiempos REALES de cada jugador los calcula
+   `effectiveMinute`. */
 export function currentMinute(match, now) {
-  const { h1, h2 } = halfElapsedSeconds(match, now);
   const halfMin = match.halfMinutes || 25;
-  const base = firstHalfBase(match);
-  if (match.phase === "h1") return Math.floor(Math.min(h1, halfMin * 60) / 60) + 1;
-  if (match.phase === "descanso") return base;
-  if (match.phase === "h2" || match.phase === "finalizado") return base + Math.floor(Math.min(h2, halfMin * 60) / 60) + 1;
+  const { h1, h2 } = halfElapsedSeconds(match, now);
+  if (match.phase === "h1") return Math.floor(h1 / 60) + 1;
+  if (match.phase === "descanso") return halfMin;
+  if (match.phase === "h2" || match.phase === "finalizado") return halfMin + Math.floor(h2 / 60) + 1;
   return 0;
 }
 
-/* Reloj mostrado. La 2ª parte arranca en halfMin:00 (el descuento de la 1ª
-   parte no se arrastra); el descuento se indica aparte con "+N'". */
+/* Reloj mostrado. Es un reloj de partido: la 2ª parte arranca en el minuto de
+   la parte (25:00) sea cual sea la duración real de la 1ª, y el descuento se
+   indica aparte con "+N'". Los minutos REALES de cada jugador los lleva
+   `effectiveMinute`, no este reloj. */
 export function timerDisplay(match, now) {
   const { h1, h2 } = halfElapsedSeconds(match, now);
   const halfMin = match.halfMinutes || 25;
   const halfSec = halfMin * 60;
+  const fmt = (totalSec) => `${pad2(Math.floor(totalSec / 60))}:${pad2(totalSec % 60)}`;
   if (match.phase === "h1") {
     const over = h1 > halfSec;
-    const shown = over ? h1 - halfSec : h1;
-    return { main: `${pad2(Math.floor(shown / 60) + (over ? halfMin : 0))}:${pad2(shown % 60)}`, added: over ? `+${Math.floor((h1 - halfSec) / 60) + 1}'` : null };
+    return { main: fmt(h1), added: over ? `+${Math.floor((h1 - halfSec) / 60) + 1}'` : null };
   }
-  if (match.phase === "descanso") return { main: `${pad2(halfMin)}:00`, added: null };
+  if (match.phase === "descanso") return { main: fmt(halfSec), added: null };
   if (match.phase === "h2" || match.phase === "finalizado") {
     const over = h2 > halfSec;
-    const shown = over ? h2 - halfSec : h2;
-    return { main: `${pad2(halfMin + Math.floor(shown / 60) + (over ? halfMin : 0))}:${pad2(shown % 60)}`, added: over ? `+${Math.floor((h2 - halfSec) / 60) + 1}'` : null };
+    return { main: fmt(halfSec + h2), added: over ? `+${Math.floor((h2 - halfSec) / 60) + 1}'` : null };
   }
   return { main: "00:00", added: null };
 }
 
-/* Minuto EFECTIVO 1..(2*halfMin), sin contar los minutos de descuento.
-   Si una parte se pasó de halfMin, se capa a halfMin (esos extra no cuentan
-   para los minutos jugados). Se usa para atribuir tiempos a jugadores.
-   En el descanso devuelve el minuto REAL al que se llegó en la 1ª parte
-   (no halfMin), para no inflar los minutos jugados. */
+/* Minuto EFECTIVO (real) usado para atribuir tiempos a jugadores. Incluye el
+   tiempo de descuento y arranca la 2ª parte en el fin REAL de la 1ª. En el
+   descanso devuelve el minuto real al que se llegó en la 1ª parte. */
 export function effectiveMinute(match, now) {
   const { h1, h2 } = halfElapsedSeconds(match, now);
-  const halfMin = match.halfMinutes || 25;
   const base = firstHalfBase(match);
-  if (match.phase === "h1") return Math.floor(Math.min(h1, halfMin * 60) / 60);
+  if (match.phase === "h1") return Math.floor(h1 / 60);
   if (match.phase === "descanso") return base;
   if (match.phase === "h2" || match.phase === "finalizado") {
-    return base + Math.floor(Math.min(h2, halfMin * 60) / 60);
+    return base + Math.floor(h2 / 60);
   }
   return 0;
 }
 
-/* Duración efectiva de un tramo [start,end] recortada a las partes del partido
-   (1ª: 0..h1Base, 2ª: h1Base..h1Base+halfMin) y al minuto final efectivo `cap`.
-   Excluye el descanso y los minutos de descuento. */
+/* Duración de un tramo [start,end] recortada al minuto final efectivo `cap`
+   (real, sin descanso). El descanso no está en los minutos globales, por lo que
+   el reparto por partes solo sirve para respetar la frontera de la 1ª parte. */
 export function clippedDuration(start, end, halfMin, cap, h1Base) {
   const half = halfMin || 25;
   const base = h1Base == null ? half : h1Base;
@@ -427,8 +599,9 @@ export function clippedDuration(start, end, halfMin, cap, h1Base) {
 }
 
 /* Minuto efectivo en que terminó la 1ª parte (base desde la que arranca la 2ª).
-   Si la 1ª parte se jugó completa, es halfMin; si se cortó antes, el minuto real.
-   En partidos antiguos sin h1Seconds registrado se asume la parte completa. */
+   Es el minuto REAL jugado (sin capar a halfMin): si la 1ª parte duró 30 min,
+   la 2ª arranca en el 30. En partidos antiguos sin h1Seconds registrado se
+   asume la parte completa si ya finalizó. */
 export function firstHalfBase(match) {
   const halfMin = match.halfMinutes || 25;
   const h1 = match.h1Seconds;
@@ -437,7 +610,7 @@ export function firstHalfBase(match) {
     // en juego (descanso/2ª parte) si es 0 significa que no se jugó nada.
     return match.phase === "finalizado" ? halfMin : 0;
   }
-  return Math.min(Math.floor(h1 / 60), halfMin);
+  return Math.floor(h1 / 60);
 }
 
 /* Tiempo por jugador con el minuto EFECTIVO (sin descuento y sin descanso):

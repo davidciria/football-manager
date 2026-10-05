@@ -14,6 +14,14 @@ import {
   finalizeIntervals,
   eventsByMinute,
   cardTotals,
+  normalizeNotes,
+  newNote,
+  addNote,
+  removeNote,
+  notesByMinute,
+  migrateMatchNotes,
+  migrateHistory,
+  repairMojibake,
 } from "./matchLogic.js";
 
 const SQUAD = Array.from({ length: 10 }, (_, i) => ({
@@ -151,6 +159,45 @@ describe("orden de cambios", () => {
     expect(field[0].since).toBe(0);
     expect(field[field.length - 1].player.id).toBe("p8");
   });
+
+  it("un cambio de rol (formación) no falsea el orden del campo", () => {
+    let m = makeMatch();
+    m = changeFormation(m, "1-4-1-1", 10); // parte intervalos de quien cambia de rol
+    const { field } = subOrdering(m, SQUAD, 20);
+    // Todos los que siguen en el campo llevan desde el 0: el cambio de rol no cuenta.
+    field.forEach((f) => expect(f.since).toBe(0));
+    expect(field).toHaveLength(7);
+  });
+
+  it("banquillo ordenado por más tiempo esperando (primero el que más)", () => {
+    let m = makeMatch();
+    m = applySubstitution(m, { slotId: "d1", outId: "p2", inId: "p8", minute: 5, role: "DEF" });
+    m = applySubstitution(m, { slotId: "f1", outId: "p7", inId: "p9", minute: 15, role: "DEL" });
+    const { bench } = subOrdering(m, SQUAD, 20);
+    const ids = bench.map((b) => b.player.id);
+    expect(ids.indexOf("p2")).toBeLessThan(ids.indexOf("p7"));
+    expect(bench.find((b) => b.player.id === "p2").minutes).toBe(15);
+    expect(bench.find((b) => b.player.id === "p7").minutes).toBe(5);
+  });
+});
+
+describe("minuto de evento vs minuto real", () => {
+  it("guarda displayMinute (reloj) separado del minute real (intervalos)", () => {
+    let m = makeMatch();
+    m = applySubstitution(m, { slotId: "d1", outId: "p2", inId: "p8", minute: 22, role: "DEF", eventMinute: 25 });
+    // El intervalo usa el minuto real (22); el evento muestra el del reloj (25).
+    expect(m.intervals.p2[m.intervals.p2.length - 1].end).toBe(22);
+    expect(m.intervals.p8[m.intervals.p8.length - 1].start).toBe(22);
+    const ev = m.events.find((e) => e.type === "cambio");
+    expect(ev.minute).toBe(22);
+    expect(ev.displayMinute).toBe(25);
+  });
+
+  it("sin eventMinute no añade displayMinute", () => {
+    const m = applySubstitution(makeMatch(), { slotId: "d1", outId: "p2", inId: "p8", minute: 10, role: "DEF" });
+    const ev = m.events.find((e) => e.type === "cambio");
+    expect(ev.displayMinute).toBeUndefined();
+  });
 });
 
 describe("alineación inicial", () => {
@@ -231,3 +278,98 @@ describe("finalización del partido", () => {
     expect(Object.values(fin.lineup)).not.toContain("p3");
   });
 });
+
+describe("notas del partido", () => {
+  it("normaliza el formato nuevo conservando minuto y texto", () => {
+    const m = { notesLog: [{ id: "n1", minute: 12, text: "Presión alta" }, { id: "n2", minute: null, text: "Mejorar salida" }] };
+    expect(normalizeNotes(m)).toEqual([
+      { id: "n1", minute: 12, text: "Presión alta" },
+      { id: "n2", minute: null, text: "Mejorar salida" },
+    ]);
+  });
+
+  it("adapta el formato antiguo (string) a la lista con minuto", () => {
+    const m = { notes: "12' Presión alta\nA mejorar la salida" };
+    const notes = normalizeNotes(m);
+    expect(notes).toHaveLength(2);
+    expect(notes[0]).toMatchObject({ minute: 12, text: "Presión alta" });
+    expect(notes[1]).toMatchObject({ minute: null, text: "A mejorar la salida" });
+  });
+
+  it("newNote descarta notas vacías y conserva el minuto", () => {
+    expect(newNote({ text: "   ", minute: 5 })).toBeNull();
+    expect(newNote({ text: "  Buen ritmo  ", minute: 5 })).toMatchObject({ minute: 5, text: "Buen ritmo" });
+    expect(newNote({ text: "Sin minuto", minute: "" })).toMatchObject({ minute: null });
+  });
+
+  it("añade y borra notas sobre el match", () => {
+    let m = { id: "m1" };
+    m = addNote(m, { text: "Primera", minute: 3 });
+    m = addNote(m, { text: "Segunda", minute: 40 });
+    expect(normalizeNotes(m)).toHaveLength(2);
+    m = removeNote(m, m.notesLog[0].id);
+    expect(normalizeNotes(m)).toEqual([{ id: m.notesLog[0].id, minute: 40, text: "Segunda" }]);
+  });
+
+  it("ordena por minuto y deja las sin minuto al final", () => {
+    const notes = [
+      { id: "a", minute: null, text: "sin" },
+      { id: "b", minute: 40, text: "cuarenta" },
+      { id: "c", minute: 5, text: "cinco" },
+    ];
+    expect(notesByMinute(notes).map((n) => n.id)).toEqual(["c", "b", "a"]);
+  });
+
+  it("migra un partido antiguo y elimina el campo notes", () => {
+    const old = { id: "m1", opponent: "Rival", notes: "10' Gol de cabeza\nBuen partido" };
+    const migrated = migrateMatchNotes(old);
+    expect(migrated).not.toBe(old);
+    expect("notes" in migrated).toBe(false);
+    expect(migrated.notesLog).toHaveLength(2);
+    expect(migrated.notesLog[0]).toMatchObject({ minute: 10, text: "Gol de cabeza" });
+  });
+
+  it("no toca partidos ya migrados o sin notas", () => {
+    const already = { id: "m1", notesLog: [{ id: "n", minute: 1, text: "x" }] };
+    expect(migrateMatchNotes(already)).toBe(already);
+    const empty = { id: "m2" };
+    expect(migrateMatchNotes(empty)).toBe(empty);
+  });
+
+  it("migrateHistory solo devuelve una nueva lista si algo cambió", () => {
+    const oldHistory = [{ id: "m1", notes: "5' prueba" }];
+    const migrated = migrateHistory(oldHistory);
+    expect(migrated).not.toBe(oldHistory);
+    expect(Array.isArray(migrated[0].notesLog)).toBe(true);
+    const cleanHistory = [{ id: "m2", notesLog: [] }];
+    expect(migrateHistory(cleanHistory)).toBe(cleanHistory);
+  });
+});
+
+describe("reparación de codificación (mojibake UTF-8 leído como CP850)", () => {
+  it("repara la 'ó' corrompida a '├│'", () => {
+    expect(repairMojibake("Concentraci\u251C\u2502")).toBe("Concentració");
+  });
+
+  it("repara el apóstrofo tipográfico corrupto a 'ÔÇÖ'", () => {
+    expect(repairMojibake("d\u00D4\u00C7\u00D6espais")).toBe("d’espais");
+  });
+
+  it("no toca texto correcto con acentos", () => {
+    expect(repairMojibake("Concentració d’espais")).toBe("Concentració d’espais");
+  });
+
+  it("no toca otros caracteres especiales legítimos (•)", () => {
+    expect(repairMojibake("• Saques de banda")).toBe("• Saques de banda");
+  });
+
+  it("se aplica al normalizar notas nuevas y antiguas", () => {
+    expect(normalizeNotes({ notesLog: [{ id: "n", minute: 3, text: "Ocupaci\u251C\u2502" }] })[0].text).toBe("Ocupació");
+    expect(normalizeNotes({ notes: "Concentraci\u251C\u2502" })[0].text).toBe("Concentració");
+    expect(newNote({ text: "d\u00D4\u00C7\u00D6espais", minute: 5 }).text).toBe("d’espais");
+  });
+});
+
+
+
+

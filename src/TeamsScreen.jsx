@@ -8,11 +8,11 @@ import React, { useEffect, useState } from "react";
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 .fm-teams{
-  --deep:#0E2019; --mid:#153A2C; --mid2:#1E4D3B; --line:#F2FAF5;
-  --soft:#A9CBBB; --faint:#7C9C8A; --amber:#F5B23F; --amber-ink:#3A2405;
-  --sky:#5DB6F0; --red:#FF5A4D; --hair:rgba(234,244,238,0.12); --hair2:rgba(234,244,238,0.26);
+  --deep:#0B1A14; --mid:#12291F; --mid2:#1B3D2F; --line:#F2FAF5;
+  --soft:#9DBFAF; --faint:#6F8F7E; --amber:#F5B23F; --amber-ink:#3A2405;
+  --sky:#5DB6F0; --red:#FF5A4D; --hair:rgba(234,244,238,0.10); --hair2:rgba(234,244,238,0.18);
   min-height:100vh; min-height:100dvh; width:100%; display:flex; flex-direction:column;
-  background:radial-gradient(1200px 600px at 50% -10%, var(--mid2), var(--deep) 60%);
+  background:radial-gradient(1200px 620px at 50% -12%, #17362A 0%, var(--deep) 58%);
   color:var(--line); font-family:'Manrope',system-ui,sans-serif;
   padding:calc(20px + env(safe-area-inset-top)) 18px calc(20px + env(safe-area-inset-bottom));
   box-sizing:border-box; overflow-y:auto;
@@ -20,12 +20,12 @@ const CSS = `
 .fm-teams *{box-sizing:border-box;}
 .fm-teams-inner{width:100%; max-width:520px; margin:0 auto;}
 .fm-teams-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;}
-.fm-teams-title{font-family:'Teko',sans-serif; font-weight:700; font-size:34px; line-height:0.95; letter-spacing:0.02em;}
+.fm-teams-title{font-family:'Teko',sans-serif; font-weight:600; font-size:34px; line-height:0.95; letter-spacing:0.01em;}
 .fm-teams-sub{font-size:12.5px; color:var(--soft); font-weight:600;}
 .fm-team-card{
   display:flex; align-items:stretch; gap:0; width:100%;
-  background:linear-gradient(180deg,var(--mid),var(--deep)); border:1px solid var(--hair2);
-  border-radius:16px; margin-bottom:10px; overflow:hidden;
+  background:var(--mid); border:1px solid var(--hair2);
+  border-radius:18px; margin-bottom:10px; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,0.25);
 }
 .fm-team-main{
   display:flex; align-items:center; gap:14px; flex:1; text-align:left; min-width:0;
@@ -35,7 +35,7 @@ const CSS = `
 .fm-team-main:active{background:rgba(234,244,238,0.05);}
 .fm-team-share{
   flex-shrink:0; width:56px; display:flex; align-items:center; justify-content:center;
-  background:rgba(234,244,238,0.05); border:none; border-left:1px solid var(--hair2);
+  background:rgba(234,244,238,0.04); border:none; border-left:1px solid var(--hair2);
   color:var(--amber); cursor:pointer;
 }
 .fm-team-share:active{background:rgba(245,178,63,0.15);}
@@ -71,35 +71,36 @@ const CSS = `
 .fm-teams-actions{display:flex; gap:10px; margin-top:14px;}
 .fm-teams-btn{
   flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:14px;
-  border-radius:13px; border:1.5px solid var(--hair2); background:var(--mid2); color:var(--line);
-  font-family:inherit; font-weight:800; font-size:14.5px; cursor:pointer; touch-action:manipulation;
+  border-radius:14px; border:1px solid var(--hair2); background:var(--mid2); color:var(--line);
+  font-family:inherit; font-weight:800; font-size:14.5px; cursor:pointer; touch-action:manipulation; min-height:48px;
 }
 .fm-teams-btn.primary{background:var(--amber); color:var(--amber-ink); border-color:var(--amber);}
 .fm-teams-btn:active{transform:scale(0.98);}
 .fm-teams-btn:disabled{opacity:0.5;}
 .fm-sheet-bg{position:fixed; inset:0; background:rgba(4,10,7,0.72); z-index:50; display:flex; align-items:flex-end; justify-content:center;}
 .fm-sheet{
-  width:100%; max-width:520px; background:var(--mid); border-radius:20px 20px 0 0;
+  width:100%; max-width:520px; background:var(--mid); border-radius:22px 22px 0 0;
   padding:6px 0 calc(18px + env(safe-area-inset-bottom)); max-height:88dvh; display:flex; flex-direction:column; overflow:hidden;
+  border-top:1px solid var(--hair2);
 }
 .fm-sheet-handle{width:36px;height:4px;background:var(--hair2);border-radius:100px;margin:10px auto 4px;flex-shrink:0;}
 .fm-sheet-head{display:flex;align-items:center;justify-content:space-between;padding:10px 18px 4px;flex-shrink:0;}
-.fm-sheet-title{font-family:'Teko',sans-serif;font-weight:700;font-size:23px;color:var(--line);}
+.fm-sheet-title{font-family:'Teko',sans-serif;font-weight:600;font-size:23px;color:var(--line);}
 .fm-sheet-body{flex:1 1 auto; min-height:0; overflow-y:auto; padding:10px 18px 4px;}
-.fm-label2{font-size:11.5px; color:var(--soft); font-weight:800; margin:14px 0 6px; display:block; text-transform:uppercase; letter-spacing:0.04em;}
+.fm-label2{font-size:11.5px; color:var(--soft); font-weight:800; margin:14px 0 6px; display:block; text-transform:uppercase; letter-spacing:0.05em;}
 .fm-input2{
-  width:100%; background:#0A1812; border:1px solid var(--hair2); color:#FFF; border-radius:12px;
-  padding:13px 14px; font-size:16px; font-family:inherit; font-weight:600; outline:none;
+  width:100%; background:#0A1712; border:1px solid var(--hair2); color:#FFF; border-radius:12px;
+  padding:13px 14px; font-size:16px; font-family:inherit; font-weight:600; outline:none; min-height:44px;
 }
 .fm-input2:focus{border-color:var(--amber); box-shadow:0 0 0 3px rgba(245,178,63,0.2);}
-.fm-xbtn{background:transparent;border:1px solid var(--hair2);color:var(--line);width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.fm-xbtn{background:transparent;border:1px solid var(--hair2);color:var(--line);width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .fm-member-row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--hair);}
 .fm-select{
-  background:#0A1812;border:1px solid var(--hair2);color:#FFF;border-radius:9px;padding:7px 9px;
+  background:#0A1712;border:1px solid var(--hair2);color:#FFF;border-radius:10px;padding:7px 9px;
   font-family:inherit;font-weight:700;font-size:12.5px;
 }
 .fm-code-box{
-  flex:1; background:#0A1812; border:1px solid var(--hair2); border-radius:12px; padding:12px;
+  flex:1; background:#0A1712; border:1px solid var(--hair2); border-radius:12px; padding:12px;
   font-family:'Teko',sans-serif; font-weight:700; font-size:26px; letter-spacing:0.16em;
   display:flex; align-items:center; justify-content:center; color:#FFF;
 }

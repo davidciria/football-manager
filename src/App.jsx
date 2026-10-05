@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   Play, Pause, Plus, X, Check,
   Users, BarChart3, Trophy, ArrowLeftRight, Send, Hand, Target,
@@ -15,6 +16,7 @@ import {
   initialLineupOf, outPlayers, canFillEmptySlot, onFieldCount, redCount, yellowCount,
   finalizeIntervals, eventsByMinute, halfElapsedSeconds, currentMinute, timerDisplay,
   effectiveMinute, playerTimeStats, clippedDuration, firstHalfBase,
+  normalizeNotes, removeNote, newNote, notesByMinute, migrateMatchNotes, migrateHistory,
 } from "./matchLogic.js";
 
 /* ============================================================================
@@ -28,24 +30,38 @@ const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Teko:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root{
-  --pitch-deep:#0E2019;
-  --pitch-mid:#153A2C;
-  --pitch-mid2:#1E4D3B;
+  --pitch-deep:#0B1A14;
+  --pitch-mid:#12291F;
+  --pitch-mid2:#1B3D2F;
   --pitch-line:#F2FAF5;
-  --ink-soft:#A9CBBB;
-  --ink-faint:#7C9C8A;
+  --ink-soft:#9DBFAF;
+  --ink-faint:#6F8F7E;
   --accent-amber:#F5B23F;
   --accent-amber-ink:#3A2405;
   --accent-sky:#5DB6F0;
   --card-yellow:#F5C518;
   --card-red:#FF5A4D;
-  --hair:rgba(234,244,238,0.12);
-  --hair-strong:rgba(234,244,238,0.24);
+  --hair:rgba(234,244,238,0.10);
+  --hair-strong:rgba(234,244,238,0.18);
+
+  /* Sistema de diseño */
+  --surface-1:#12291F;
+  --surface-2:#173127;
+  --surface-3:#1E3D30;
+  --app-bg:radial-gradient(1200px 620px at 50% -12%, #17362A 0%, #0B1A14 58%);
+  --radius-sm:10px;
+  --radius:14px;
+  --radius-lg:18px;
+  --shadow-1:0 1px 2px rgba(0,0,0,0.28);
+  --shadow-2:0 8px 24px rgba(0,0,0,0.28);
+  --pad:16px;
+  --tap:44px;
 }
 
 .fm-root{
   font-family:'Manrope',system-ui,sans-serif;
   background:var(--pitch-deep);
+  background-image:var(--app-bg);
   color:var(--pitch-line);
   height:100vh;
   height:100dvh;
@@ -56,8 +72,12 @@ const CSS = `
   -webkit-tap-highlight-color:transparent;
   -webkit-text-size-adjust:100%;
   text-size-adjust:100%;
+  -webkit-user-select:none;
+  user-select:none;
+  -webkit-touch-callout:none;
   overflow:hidden;
 }
+.fm-root input, .fm-root textarea{-webkit-user-select:text;user-select:text;}
 .fm-root *{box-sizing:border-box;}
 .fm-num{font-family:'Teko',sans-serif;font-weight:700;letter-spacing:0.01em;color:currentColor;}
 .fm-readonly-bar{
@@ -76,93 +96,159 @@ const CSS = `
   flex:1 1 auto;
   min-height:0;
   overflow-y:auto;
-  padding-bottom:16px;
+  overflow-x:hidden;
+  padding-bottom:0;
   overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  scroll-behavior:auto;
 }
 
 /* ---- Header ---- */
 .fm-header{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:calc(16px + env(safe-area-inset-top)) 18px 12px;
-  border-bottom:1px solid var(--hair);
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:calc(12px + env(safe-area-inset-top)) var(--pad) 12px;
+  background:rgba(11,26,20,0.72);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
 }
-.fm-header h1{
-  font-family:'Teko',sans-serif;font-weight:600;font-size:26px;
-  letter-spacing:0.02em;margin:0;line-height:1;
+.fm-header-id{display:flex;align-items:center;gap:11px;min-width:0;}
+.fm-header-mark{
+  width:36px;height:36px;border-radius:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  background:var(--accent-amber);color:var(--accent-amber-ink);font-size:19px;
 }
-.fm-header .fm-sub{font-size:11px;color:var(--ink-soft);margin-top:3px;}
+.fm-header-txt{min-width:0;}
+.fm-header-team{
+  font-weight:800;font-size:14.5px;line-height:1.15;letter-spacing:-0.01em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.fm-header-sub{
+  font-size:11px;color:var(--ink-soft);font-weight:700;margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.fm-header-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .fm-iconbtn{
   background:transparent;border:1px solid var(--hair-strong);color:var(--pitch-line);
-  width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  width:var(--tap);height:var(--tap);border-radius:13px;display:flex;align-items:center;justify-content:center;
   flex-shrink:0;touch-action:manipulation;
 }
 .fm-iconbtn:active{background:var(--pitch-mid2);}
+.fm-live-badge{
+  display:inline-flex;align-items:center;gap:5px;flex-shrink:0;
+  font-size:10.5px;font-weight:800;letter-spacing:0.06em;
+  color:var(--accent-amber-ink);background:var(--accent-amber);border-radius:100px;padding:4px 9px;
+}
+
+/* Section title used inside each screen */
+.fm-screen-head{padding:14px var(--pad) 2px;}
+.fm-screen-title{font-family:'Teko',sans-serif;font-weight:600;font-size:27px;line-height:1;letter-spacing:0.01em;}
+.fm-screen-desc{font-size:12.5px;color:var(--ink-soft);margin-top:3px;line-height:1.4;}
 
 /* ---- Tab bar ---- */
 .fm-tabbar{
   flex-shrink:0;
   display:flex;
-  background:#122E23;
-  border-top:1px solid var(--hair-strong);
-  padding:8px 6px calc(8px + env(safe-area-inset-bottom));
+  background:rgba(11,26,20,0.86);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-top:1px solid var(--hair);
+  padding:6px 4px calc(6px + env(safe-area-inset-bottom));
 }
 .fm-tab{
   flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-  background:transparent;border:none;color:#A9CBBB;
-  padding:6px 2px;font-family:'Manrope',sans-serif;font-size:11px;font-weight:700;
-  letter-spacing:0.01em;touch-action:manipulation;
+  background:transparent;border:none;color:var(--ink-faint);
+  padding:6px 2px;font-family:'Manrope',sans-serif;font-size:10.5px;font-weight:700;
+  letter-spacing:0.01em;touch-action:manipulation;border-radius:12px;transition:color .15s ease;
 }
 .fm-tab.active{color:var(--accent-amber);}
+.fm-tab.active::after{content:"";width:16px;height:2.5px;border-radius:100px;background:var(--accent-amber);margin-top:1px;}
+.fm-tab:active{background:rgba(234,244,238,0.05);}
 
 /* ---- Generic layout ---- */
-.fm-section{padding:16px 18px;}
+.fm-section{padding:14px var(--pad);}
 .fm-h2{font-family:'Teko',sans-serif;font-weight:700;font-size:23px;letter-spacing:0.01em;margin:0 0 10px;color:#F2FAF5;}
-.fm-label{font-size:12px;color:#B7D6C6;font-weight:700;margin-bottom:6px;display:block;text-transform:uppercase;letter-spacing:0.04em;}
+.fm-label{font-size:11.5px;color:var(--ink-soft);font-weight:800;margin-bottom:7px;display:block;text-transform:uppercase;letter-spacing:0.05em;}
 .fm-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.fm-card{
+  background:var(--surface-1);border:1px solid var(--hair);border-radius:var(--radius-lg);
+  padding:15px;box-shadow:var(--shadow-1);
+}
 .fm-list-row{
   display:flex;align-items:center;gap:12px;padding:13px 2px;border-bottom:1px solid var(--hair);
 }
 .fm-list-row:last-child{border-bottom:none;}
 
 .fm-input{
-  background:#0A1812;border:1px solid rgba(234,244,238,0.28);color:#FFFFFF;
-  border-radius:10px;padding:11px 12px;font-size:16px;font-family:'Manrope',sans-serif;
-  width:100%;outline:none;font-weight:600;
+  background:#0A1712;border:1px solid var(--hair-strong);color:#FFFFFF;
+  border-radius:var(--radius-sm);padding:12px 13px;font-size:16px;font-family:'Manrope',sans-serif;
+  width:100%;outline:none;font-weight:600;min-height:var(--tap);
 }
-.fm-input::placeholder{color:#7C9C8A;}
+.fm-input::placeholder{color:var(--ink-faint);}
 .fm-input:focus{border-color:var(--accent-amber);box-shadow:0 0 0 3px rgba(245,178,63,0.20);}
 .fm-textarea{min-height:80px;resize:vertical;line-height:1.5;}
 
 .fm-btn{
-  border:none;border-radius:11px;padding:13px 16px;font-family:'Manrope',sans-serif;
+  border:none;border-radius:var(--radius);padding:13px 16px;font-family:'Manrope',sans-serif;
   font-weight:700;font-size:14.5px;display:flex;align-items:center;justify-content:center;gap:7px;
-  touch-action:manipulation;
+  touch-action:manipulation;min-height:var(--tap);transition:transform .08s ease,filter .15s ease;
 }
-.fm-btn-primary{background:var(--accent-amber);color:var(--accent-amber-ink);}
+.fm-btn:active{transform:scale(0.985);}
+.fm-btn-primary{background:var(--accent-amber);color:var(--accent-amber-ink);box-shadow:0 4px 14px rgba(245,178,63,0.22);}
 .fm-btn-primary:active{background:#DE9A2D;}
-.fm-btn-ghost{background:transparent;color:var(--pitch-line);border:1px solid var(--hair-strong);}
-.fm-btn-ghost:active{background:var(--pitch-mid2);}
+.fm-btn-ghost{background:var(--surface-2);color:var(--pitch-line);border:1px solid var(--hair-strong);}
+.fm-btn-ghost:active{background:var(--surface-3);}
 .fm-btn-danger{background:transparent;color:#FF7A6E;border:1px solid rgba(255,90,77,0.5);}
 .fm-btn-block{width:100%;}
-.fm-btn-sm{padding:8px 12px;font-size:13px;border-radius:9px;}
+.fm-btn-sm{padding:9px 13px;font-size:13px;border-radius:var(--radius-sm);min-height:36px;}
 .fm-btn:disabled{opacity:0.4;}
 
 .fm-chip{
-  display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:11px;
-  font-size:13px;font-weight:800;border:1.5px solid rgba(234,244,238,0.30);
-  background:#1B4636;color:#F2FAF5;box-shadow:0 1px 3px rgba(0,0,0,0.25);
+  display:inline-flex;align-items:center;gap:6px;padding:10px 14px;border-radius:100px;min-height:40px;
+  font-size:13px;font-weight:800;border:1px solid var(--hair-strong);
+  background:var(--surface-2);color:#EAF4EE;
   touch-action:manipulation;line-height:1;
 }
-.fm-chip:active{background:#245743;transform:scale(0.97);}
+.fm-chip:active{background:var(--surface-3);transform:scale(0.97);}
 .fm-chip.on{background:var(--accent-amber);color:var(--accent-amber-ink);border-color:var(--accent-amber);}
 .fm-chip svg{flex-shrink:0;}
 .fm-tags{display:flex;flex-wrap:wrap;gap:8px;}
 .fm-tag{
-  padding:7px 12px;border-radius:100px;font-size:12.5px;font-weight:700;font-family:'Manrope',sans-serif;
-  background:#1B4636;border:1.5px solid rgba(234,244,238,0.28);color:#EAF4EE;cursor:pointer;
+  padding:8px 13px;border-radius:100px;font-size:12.5px;font-weight:700;font-family:'Manrope',sans-serif;
+  background:var(--surface-2);border:1px solid var(--hair-strong);color:#EAF4EE;cursor:pointer;
   touch-action:manipulation;
 }
-.fm-tag:active{background:#245743;transform:scale(0.97);}
+.fm-tag:active{background:var(--surface-3);transform:scale(0.97);}
+
+/* ---- Guidance: pasos, ayudas y acciones fijas ---- */
+.fm-step{display:flex;align-items:center;gap:9px;margin:0 0 12px;}
+.fm-step-num{
+  width:24px;height:24px;border-radius:50%;background:var(--accent-amber);color:var(--accent-amber-ink);
+  font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;font-family:'Manrope',sans-serif;
+}
+.fm-step-title{font-family:'Teko',sans-serif;font-weight:600;font-size:21px;letter-spacing:0.01em;line-height:1;}
+.fm-hint{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin:-4px 0 14px;}
+.fm-info-banner{
+  display:flex;gap:11px;align-items:flex-start;
+  background:rgba(93,182,240,0.10);border:1px solid rgba(93,182,240,0.30);
+  border-radius:var(--radius);padding:14px;margin-bottom:18px;color:#CFE9FF;font-size:13px;line-height:1.45;
+}
+.fm-info-banner svg{flex-shrink:0;margin-top:1px;}
+.fm-info-banner b{color:#EAF6FF;}
+.fm-sticky-actions{
+  position:sticky;bottom:0;z-index:6;
+  display:flex;gap:8px;align-items:center;
+  padding:12px var(--pad);
+  margin:16px calc(-1 * var(--pad)) -14px;
+  background:rgba(11,26,20,0.9);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-top:1px solid var(--hair);
+}
+.fm-sticky-actions .fm-btn{flex:1;min-width:0;}
+.fm-sticky-actions .fm-btn.auto{flex:0 0 auto;}
+.fm-sticky-actions.col{flex-direction:column;align-items:stretch;}
+.fm-sticky-actions.col .fm-btn{flex:0 0 auto;width:100%;}
+.fm-tool-name{
+  font-size:12.5px;font-weight:700;color:var(--pitch-line);margin:8px 0 0;
+}
+.fm-tool-name span{color:var(--ink-soft);font-weight:600;}
 
 .fm-badge-role{
   width:27px;height:27px;border-radius:7px;display:flex;align-items:center;justify-content:center;
@@ -179,9 +265,9 @@ const CSS = `
 }
 
 /* ---- MVP voting ---- */
-.fm-mvp-row{display:flex;align-items:center;gap:12px;padding:10px 2px;border-bottom:1px solid var(--hair);}
+.fm-mvp-row{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--hair);}
 .fm-mvp-row:last-child{border-bottom:none;}
-.fm-mvp-row.leader{background:rgba(242,169,59,0.08);border-radius:10px;padding-left:8px;padding-right:8px;}
+.fm-mvp-row.leader{background:rgba(245,178,63,0.10);border-radius:12px;padding-left:10px;padding-right:10px;}
 .fm-mvp-count{
   font-family:'Teko',sans-serif;font-weight:700;font-size:23px;min-width:26px;text-align:center;color:#FFFFFF;
 }
@@ -194,6 +280,10 @@ const CSS = `
   border:1px solid var(--hair-strong);touch-action:none;
 }
 .fm-board-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.fm-board-thumb{
+  flex-shrink:0;border-radius:9px;border:1px solid var(--hair-strong);
+  background:linear-gradient(180deg,var(--pitch-mid2) 0%, var(--surface-1) 100%);
+}
 .fm-board-toolbar{
   display:flex;gap:6px;overflow-x:auto;padding:12px 0 4px;
 }
@@ -219,26 +309,53 @@ const CSS = `
 .fm-token-chip-label{font-size:10.5px;color:#C7E2D6;font-weight:700;}
 
 .fm-empty{
-  text-align:center;padding:40px 20px;color:var(--ink-soft);
+  text-align:center;padding:44px 20px;color:var(--ink-soft);
 }
-.fm-empty svg{opacity:0.5;margin-bottom:10px;}
-.fm-empty-title{font-weight:700;color:var(--pitch-line);margin-bottom:4px;}
-.fm-empty-text{font-size:13px;line-height:1.5;}
+.fm-empty svg{opacity:0.45;margin-bottom:12px;}
+.fm-empty-title{font-weight:800;font-size:15.5px;color:var(--pitch-line);margin-bottom:5px;}
+.fm-empty-text{font-size:13px;line-height:1.55;}
 
 /* ---- Player number badge (shirt) ---- */
 .fm-shirt{
-  width:40px;height:40px;border-radius:50%;background:#0A1812;
-  border:2px solid rgba(234,244,238,0.32);display:flex;align-items:center;justify-content:center;
+  width:40px;height:40px;border-radius:50%;background:var(--surface-2);
+  border:1.5px solid var(--hair-strong);display:flex;align-items:center;justify-content:center;
   flex-shrink:0;
 }
 .fm-shirt .fm-num{font-size:19px;color:#FFFFFF;line-height:1;}
 
 /* ---- Formation setup pitch ---- */
 .fm-pitch-wrap{
-  position:relative;width:100%;aspect-ratio:3/4;border-radius:16px;overflow:hidden;
-  background:linear-gradient(180deg,var(--pitch-mid2) 0%, var(--pitch-mid) 100%);
+  position:relative;width:100%;aspect-ratio:3/4;border-radius:var(--radius-lg);overflow:hidden;
+  background:linear-gradient(180deg,var(--pitch-mid2) 0%, var(--surface-1) 100%);
   border:1px solid var(--hair-strong);
+  margin:0 auto;
 }
+/* En la preparación el campo es el protagonista: ocupa el alto libre manteniendo
+   la proporción, centrado y entero (sin cortar la etiqueta del portero). */
+.fm-setup{padding-top:10px;}
+.fm-setup .fm-formations{margin-bottom:10px;}
+.fm-pitch-hero{
+  width:auto;max-width:100%;aspect-ratio:3/4;margin:0 auto;
+  /* Alto libre = viewport - (cabecera + título + datos + formación + barra + tabs) */
+  height:clamp(300px, calc(100dvh - 405px), 600px);
+}
+/* Slots de la preparación: algo más compactos para que no se solapen en
+   formaciones con muchas líneas (1-4-1-1, 1-2-2-2, 1-2-1-3...). */
+.fm-pitch-hero .fm-slot{gap:2px;}
+.fm-pitch-hero .fm-slot-badge{
+  width:clamp(34px, 10.5vw, 46px);height:clamp(34px, 10.5vw, 46px);border-width:2px;
+}
+.fm-pitch-hero .fm-slot-badge .fm-num{font-size:clamp(14px, 4.6vw, 19px);}
+.fm-pitch-hero .fm-slot-empty-icon{width:15px;height:15px;}
+.fm-pitch-hero .fm-slot-label{
+  font-size:clamp(8px, 2.3vw, 9.5px);padding:1px 6px;
+  max-width:clamp(38px, 15vw, 58px);
+}
+
+/* Preparación compacta: menos cabecera para dar más campo. */
+.fm-setup-head{padding-top:10px;padding-bottom:0;}
+.fm-setup-head .fm-screen-title{font-size:23px;}
+.fm-setup-head .fm-screen-desc{display:none;}
 .fm-pitch-svg{position:absolute;inset:0;width:100%;height:100%;}
 .fm-slot{
   position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -263,23 +380,23 @@ const CSS = `
 .fm-input[type="date"]{min-width:0;width:100%;max-width:100%;box-sizing:border-box;-webkit-appearance:none;appearance:none;}
 
 /* ---- Formation picker ---- */
-.fm-formations{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-bottom:14px;}
+.fm-formations{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-bottom:14px;-webkit-overflow-scrolling:touch;}
 .fm-formation-opt{
-  flex-shrink:0;background:var(--pitch-mid);border:1.5px solid var(--hair-strong);border-radius:12px;
-  padding:9px 14px;text-align:center;color:#FFFFFF;
+  flex-shrink:0;background:var(--surface-2);border:1px solid var(--hair-strong);border-radius:var(--radius-sm);
+  padding:10px 15px;text-align:center;color:#FFFFFF;min-height:44px;
 }
-.fm-formation-opt.active{border-color:var(--accent-amber);background:rgba(242,169,59,0.10);color:#FFFFFF;}
+.fm-formation-opt.active{border-color:var(--accent-amber);background:rgba(245,178,63,0.12);color:#FFFFFF;}
 .fm-formation-opt .fm-num{font-size:19px;display:block;color:#FFFFFF;}
 
 /* ---- Scoreboard (live) ---- */
 .fm-scoreboard{
-  background:var(--pitch-mid);border-bottom:1px solid var(--hair);padding:14px 18px 16px;
+  background:var(--surface-1);border-bottom:1px solid var(--hair);padding:14px var(--pad) 16px;
 }
-.fm-sb-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
-.fm-sb-opponent{font-size:12.5px;color:var(--ink-soft);font-weight:600;}
+.fm-sb-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;}
+.fm-sb-opponent{font-size:12.5px;color:var(--ink-soft);font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;}
 .fm-sb-phase{
   font-size:10.5px;font-weight:800;letter-spacing:0.03em;color:var(--accent-amber);
-  background:rgba(242,169,59,0.12);padding:3px 9px;border-radius:100px;
+  background:rgba(245,178,63,0.14);padding:4px 10px;border-radius:100px;flex-shrink:0;
 }
 .fm-sb-main{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .fm-sb-score{
@@ -295,28 +412,35 @@ const CSS = `
 .fm-sb-controls{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap;}
 .fm-sb-rival{display:flex;align-items:center;gap:6px;}
 .fm-round-btn{
-  width:36px;height:36px;border-radius:50%;border:1px solid var(--hair-strong);background:transparent;
+  width:40px;height:40px;border-radius:100px;border:1px solid var(--hair-strong);background:var(--surface-2);
   color:var(--pitch-line);display:flex;align-items:center;justify-content:center;flex-shrink:0;
   touch-action:manipulation;
 }
-.fm-round-btn:active{background:var(--pitch-mid2);}
+.fm-round-btn:active{background:var(--surface-3);}
 .fm-play-btn{
-  width:52px;height:52px;border-radius:50%;background:var(--accent-amber);color:var(--accent-amber-ink);
+  width:56px;height:56px;border-radius:100px;background:var(--accent-amber);color:var(--accent-amber-ink);
   display:flex;align-items:center;justify-content:center;border:none;flex-shrink:0;
+  box-shadow:0 6px 18px rgba(245,178,63,0.25);
+}
+@media (max-width:370px){
+  .fm-sb-score{font-size:36px;gap:7px;}
+  .fm-sb-timer{font-size:36px;}
+  .fm-sb-score .vs{font-size:17px;}
+  .fm-play-btn{width:48px;height:48px;}
 }
 
 /* ---- Bench strip ---- */
-.fm-bench{padding:12px 18px 4px;}
-.fm-bench-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;}
+.fm-bench{padding:12px var(--pad) 4px;}
+.fm-bench-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch;}
 .fm-bench-card{
   flex-shrink:0;width:64px;display:flex;flex-direction:column;align-items:center;gap:5px;
 }
-.fm-bench-card .fm-shirt{background:#0A1812;}
+.fm-bench-card .fm-shirt{background:var(--surface-2);}
 .fm-bench-name{font-size:11px;text-align:center;color:#C7E2D6;font-weight:700;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;}
 
 /* ---- Timeline ---- */
-.fm-timeline{padding:6px 18px 18px;}
+.fm-timeline{padding:6px var(--pad) 18px;}
 .fm-tl-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--hair);}
 .fm-tl-item:last-child{border-bottom:none;}
 .fm-tl-min{
@@ -330,6 +454,31 @@ const CSS = `
 .fm-tl-text b{font-weight:700;}
 .fm-tl-sub{font-size:11.5px;color:var(--ink-soft);}
 
+/* ---- Notes ---- */
+.fm-note-row{
+  display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--hair);
+  align-items:flex-start;
+}
+.fm-note-row:last-child{border-bottom:none;}
+.fm-note-min{
+  font-family:'Teko',sans-serif;font-weight:600;font-size:18px;color:var(--ink-soft);
+  width:34px;flex-shrink:0;text-align:right;line-height:1.2;
+}
+.fm-note-icon{
+  width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  background:rgba(245,178,63,0.16);color:var(--accent-amber);
+}
+.fm-note-text{
+  flex:1;min-width:0;font-size:13.5px;line-height:1.45;color:var(--pitch-line);
+  white-space:pre-wrap;word-break:break-word;
+}
+.fm-match-notes-hint{
+  display:flex;align-items:center;gap:6px;margin-top:6px;
+  font-size:11.5px;color:var(--accent-amber);font-weight:600;
+  overflow:hidden;
+}
+.fm-match-notes-hint span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
 /* ---- Card icon (real card shape) ---- */
 .fm-cardshape{width:15px;height:20px;border-radius:3px;flex-shrink:0;}
 .fm-time-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;margin-top:4px;}
@@ -339,81 +488,100 @@ const CSS = `
 
 /* ---- Sheets / Modals ---- */
 .fm-overlay{
-  position:fixed;inset:0;background:rgba(4,10,7,0.72);z-index:50;
+  position:fixed;inset:0;background:rgba(4,10,7,0.72);z-index:120;
   display:flex;align-items:flex-end;justify-content:center;
+  /* El área visible real (sin la barra del navegador ni el teclado) menos un
+     margen para el notch. El portal a <body> garantiza que nada lo tape. */
+  padding-top:calc(10px + env(safe-area-inset-top));
 }
+/* El portal saca la hoja de .fm-root, así que reintroducimos aquí el box-sizing
+   y los tokens que antes heredaba del árbol de la app. */
+.fm-overlay, .fm-overlay *{box-sizing:border-box;}
 .fm-sheet{
-  width:100%;max-width:520px;background:var(--pitch-mid);border-radius:20px 20px 0 0;
-  padding:6px 0 calc(18px + env(safe-area-inset-bottom));
-  margin-bottom:var(--fm-inset,0px);
-  max-height:calc(100% - var(--fm-inset,0px) - 12px);
-  max-height:min(86dvh, calc(100% - var(--fm-inset,0px) - 12px));
+  width:100%;max-width:520px;background:var(--surface-1);border-radius:22px 22px 0 0;
+  padding:6px 0 0;
+  /* Nunca más alto que el hueco disponible (viewport - teclado). */
+  max-height:calc(100% - var(--kb-inset, 0px));
   display:flex;flex-direction:column;overflow:hidden;
+  border-top:1px solid var(--hair);
+  margin-bottom:var(--kb-inset,0px);
   animation:fm-sheet-up 0.22s ease-out;
+  color:var(--pitch-line);font-family:'Manrope',system-ui,sans-serif;
 }
 @keyframes fm-sheet-up{from{transform:translateY(24px);opacity:0.4;}to{transform:translateY(0);opacity:1;}}
-.fm-sheet-handle{width:36px;height:4px;background:var(--hair-strong);border-radius:100px;margin:10px auto 4px;flex-shrink:0;}
-.fm-sheet-head{display:flex;align-items:center;justify-content:space-between;padding:10px 18px 4px;flex-shrink:0;}
-.fm-sheet-title{font-family:'Teko',sans-serif;font-weight:600;font-size:22px;}
-.fm-sheet-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:8px 18px 4px;overscroll-behavior:contain;}
-.fm-sheet-actions{padding:12px 18px 0;display:flex;flex-direction:column;gap:8px;flex-shrink:0;}
+.fm-sheet-handle{width:36px;height:4px;background:var(--hair-strong);border-radius:100px;margin:10px auto 2px;flex-shrink:0;}
+.fm-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px var(--pad) 6px;flex-shrink:0;}
+.fm-sheet-title{font-family:'Teko',sans-serif;font-weight:600;font-size:23px;line-height:1;}
+.fm-sheet-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:10px var(--pad) 14px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
+.fm-sheet-actions{
+  padding:12px var(--pad) calc(12px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;gap:8px;flex-shrink:0;
+  border-top:1px solid var(--hair);background:var(--surface-1);
+}
+.fm-sheet-actions .fm-btn{flex-shrink:0;}
 
 .fm-modal-center{
-  position:fixed;inset:0;background:rgba(4,10,7,0.72);z-index:60;
+  position:fixed;inset:0;background:rgba(4,10,7,0.72);z-index:130;
   display:flex;align-items:center;justify-content:center;
   padding:24px;padding-bottom:calc(24px + var(--fm-inset,0px));overflow-y:auto;
 }
 .fm-modal-box{
-  width:100%;max-width:400px;background:var(--pitch-mid);border-radius:18px;padding:22px;
-  border:1px solid var(--hair-strong);
+  width:100%;max-width:400px;background:var(--surface-1);border-radius:var(--radius-lg);padding:22px;
+  border:1px solid var(--hair-strong);box-shadow:var(--shadow-2);
 }
 
 .fm-action-btn{
-  display:flex;align-items:center;gap:12px;width:100%;background:var(--pitch-deep);
-  border:1px solid var(--hair-strong);border-radius:12px;padding:13px 14px;color:var(--pitch-line);
-  font-family:'Manrope',sans-serif;font-weight:700;font-size:14.5px;text-align:left;
+  display:flex;align-items:center;gap:12px;width:100%;background:var(--surface-2);
+  border:1px solid var(--hair-strong);border-radius:var(--radius);padding:14px;color:var(--pitch-line);
+  font-family:'Manrope',sans-serif;font-weight:700;font-size:14.5px;text-align:left;min-height:var(--tap);
 }
-.fm-action-btn:active{background:var(--pitch-mid2);}
+.fm-action-btn:active{background:var(--surface-3);}
 .fm-action-icon{
-  width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 
 .fm-picker-row{
-  display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--hair);
+  display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--hair);
 }
 .fm-picker-row:last-child{border-bottom:none;}
-.fm-picker-row:active{background:var(--pitch-mid2);}
+.fm-picker-row:active{background:var(--surface-2);}
+.fm-picker-row > *{min-width:0;}
+.fm-picker-row .fm-picker-main{flex:1;min-width:0;}
+.fm-picker-row .fm-picker-title{font-weight:700;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fm-picker-row .fm-picker-sub{font-size:11.5px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fm-list-row > *{min-width:0;}
+.fm-list-row .fm-list-name{flex:1;min-width:0;font-weight:700;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
 /* ---- Toast ---- */
 .fm-toast{
-  position:fixed;bottom:96px;left:50%;transform:translateX(-50%);
-  background:var(--pitch-line);color:var(--pitch-deep);font-weight:700;font-size:13px;
-  padding:10px 18px;border-radius:100px;z-index:80;box-shadow:0 8px 24px rgba(0,0,0,0.35);
-  animation:fm-toast-in 0.18s ease-out;white-space:nowrap;
+  position:fixed;bottom:calc(84px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);
+  background:var(--pitch-line);color:var(--pitch-deep);font-weight:800;font-size:13px;
+  padding:11px 18px;border-radius:100px;z-index:80;box-shadow:var(--shadow-2);
+  animation:fm-toast-in 0.18s ease-out;max-width:calc(100vw - 32px);text-align:center;
 }
 @keyframes fm-toast-in{from{opacity:0;transform:translate(-50%,8px);}to{opacity:1;transform:translate(-50%,0);}}
 
 /* ---- History / Season ---- */
 .fm-match-card{
-  border:1px solid var(--hair-strong);border-radius:14px;padding:14px;margin-bottom:10px;
-  background:var(--pitch-mid);
+  border:1px solid var(--hair);border-radius:var(--radius-lg);padding:15px;margin-bottom:10px;
+  background:var(--surface-1);box-shadow:var(--shadow-1);
 }
-.fm-match-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;}
+.fm-match-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
 .fm-match-score{font-family:'Teko',sans-serif;font-weight:600;font-size:26px;}
-.fm-result-tag{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.fm-result-tag{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
 
 .fm-stat-table{width:100%;border-collapse:collapse;}
 .fm-stat-table th{
-  text-align:left;font-size:10.5px;color:#B7D6C6;font-weight:700;padding:0 8px 8px 0;
-  border-bottom:1px solid var(--hair-strong);
+  text-align:left;font-size:10.5px;color:var(--ink-soft);font-weight:800;padding:0 8px 9px 0;
+  border-bottom:1px solid var(--hair-strong);text-transform:uppercase;letter-spacing:0.03em;
 }
-.fm-stat-table td{padding:9px 8px 9px 0;border-bottom:1px solid var(--hair);font-size:13px;color:#F2FAF5;}
+.fm-stat-table td{padding:10px 8px 10px 0;border-bottom:1px solid var(--hair);font-size:13px;color:#F2FAF5;}
 .fm-stat-table td.num, .fm-stat-table th.num{text-align:center;}
 
-.fm-segmented{display:flex;background:#0A1812;border-radius:11px;padding:3px;gap:2px;flex-wrap:wrap;}
+.fm-segmented{display:flex;background:var(--surface-1);border:1px solid var(--hair);border-radius:var(--radius);padding:3px;gap:2px;flex-wrap:wrap;}
 .fm-segmented button{
-  flex:1;min-width:58px;border:none;background:transparent;color:#C7E2D6;font-weight:700;font-size:12.5px;
-  padding:8px 4px;border-radius:8px;
+  flex:1;min-width:58px;border:none;background:transparent;color:var(--ink-soft);font-weight:700;font-size:12.5px;
+  padding:9px 4px;border-radius:10px;transition:color .12s ease;
 }
 .fm-segmented button.active{background:var(--accent-amber);color:var(--accent-amber-ink);}
 
@@ -422,6 +590,97 @@ const CSS = `
   color:var(--pitch-line);font-family:'Teko',sans-serif;font-size:22px;z-index:100;
 }
 `;
+
+/* ============================================================================
+   iOS Safari NO soporta interactive-widget=resizes-content: el teclado se
+   superpone y Safari desplaza el visualViewport. La técnica fiable es NO tocar
+   el layout y, en su lugar, exponer la altura del teclado en una variable CSS
+   (--kb-inset) y usarla para subir el pie de la hoja por encima del teclado.
+============================================================================ */
+function useKeyboardInset() {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const root = document.documentElement;
+    const sync = () => {
+      const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      root.style.setProperty("--kb-inset", inset + "px");
+    };
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    // Safari a veces reporta el valor definitivo uno o dos frames después.
+    const raf = requestAnimationFrame(sync);
+    const t = setTimeout(sync, 250);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+      root.style.setProperty("--kb-inset", "0px");
+    };
+  }, []);
+}
+
+function useFocusReveal() {
+  const scrollerRef = useRef(null);
+
+  // Al enfocar un input dentro de la hoja, comprobamos si quedaría tapado por
+  // el teclado y, solo entonces, desplazamos el scroller de la propia hoja lo
+  // justo para dejarlo visible. No usamos scrollIntoView (mueve ancestros y
+  // provoca el "salto" hacia arriba en iOS).
+  const onFocusCapture = (e) => {
+    const el = e.target;
+    if (!el || (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA")) return;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const run = () => {
+      const vv = window.visualViewport;
+      const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+      const r = el.getBoundingClientRect();
+      const margin = 16;
+      if (r.bottom > visibleBottom - margin) {
+        scroller.scrollTop += Math.round(r.bottom - (visibleBottom - margin));
+      } else if (r.top < (vv ? vv.offsetTop : 0) + margin) {
+        scroller.scrollTop -= Math.round((vv ? vv.offsetTop : 0) + margin - r.top);
+      }
+    };
+    // Tras el foco y tras el primer frame de la apertura del teclado.
+    requestAnimationFrame(run);
+    setTimeout(run, 200);
+  };
+
+  return { scrollerRef, onFocusCapture };
+}
+
+/* Hoja inferior reutilizable. Se monta con un portal en <body> para que ningún
+   contenedor con scroll/backdrop-filter de la pantalla la atrape ni la deje por
+   debajo de la barra de pestañas (problema típico en iPhone). El pie de acciones
+   se eleva por encima del teclado con --kb-inset. */
+function Sheet({ title, onClose, children, actions, headerExtra }) {
+  const { scrollerRef, onFocusCapture } = useFocusReveal();
+  useKeyboardInset();
+
+  return createPortal(
+    <div className="fm-overlay" onClick={onClose}>
+      <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="fm-sheet-handle" />
+        <div className="fm-sheet-head">
+          <div style={{ minWidth: 0 }}>
+            <div className="fm-sheet-title">{title}</div>
+            {headerExtra}
+          </div>
+          <button className="fm-iconbtn" onClick={onClose} aria-label="Cerrar"><X size={18} /></button>
+        </div>
+        <div className="fm-sheet-body" ref={scrollerRef} onFocusCapture={onFocusCapture}>
+          {children}
+        </div>
+        {actions && <div className="fm-sheet-actions">{actions}</div>}
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 /* ============================================================================
    CONSTANTS
@@ -579,8 +838,10 @@ export default function App({ user = null, team = null, onLogout = null, onSwitc
       ]);
       if (sq) setSquad(sq); else await storageSet("squad", DEFAULT_SQUAD);
       setTemplates(tpl || []);
-      setActiveMatch(am || null);
-      setHistory(hist || []);
+      setActiveMatch(am ? migrateMatchNotes(am) : null);
+      const loadedHistory = migrateHistory(hist || []);
+      setHistory(loadedHistory);
+      if (loadedHistory !== (hist || [])) storageSet("history", loadedHistory);
       setBoards(brd || []);
       if (set) setSettings(set); else await storageSet("settings", DEFAULT_SETTINGS);
       setLoading(false);
@@ -695,6 +956,15 @@ export default function App({ user = null, team = null, onLogout = null, onSwitc
     storageSet("history", next);
   }, [history, readOnly]);
 
+  // iOS: al cambiar de pestaña (o al empezar/terminar un partido) volvemos
+  // arriba. Si no, el scroll se queda donde estabas y la nueva pantalla
+  // aparece cortada o a mitad.
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [tab, activeMatch?.id]);
+
   if (loading) {
     return (
       <div className="fm-root">
@@ -712,10 +982,11 @@ export default function App({ user = null, team = null, onLogout = null, onSwitc
         settings={settings}
         tab={tab}
         team={team}
+        liveMatch={activeMatch}
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      <div className="fm-scroll">
+      <div className="fm-scroll" ref={scrollRef}>
         {tab === "partido" && (
           <PartidoTab
             squad={squad}
@@ -731,6 +1002,7 @@ export default function App({ user = null, team = null, onLogout = null, onSwitc
             onAddPlayer={addSquadPlayer}
             showToast={showToast}
             readOnly={readOnly}
+            onGoToSquad={() => setTab("plantilla")}
           />
         )}
         {tab === "plantilla" && (
@@ -740,10 +1012,10 @@ export default function App({ user = null, team = null, onLogout = null, onSwitc
           <PizarraTab squad={squad} boards={boards} onChange={updateBoards} showToast={showToast} readOnly={readOnly} />
         )}
         {tab === "historial" && (
-          <HistorialTab history={history} squad={squad} onDelete={deleteFromHistory} onUpdateMatch={updateMatchInHistory} showToast={showToast} readOnly={readOnly} />
+          <HistorialTab history={history} squad={squad} onDelete={deleteFromHistory} onUpdateMatch={updateMatchInHistory} showToast={showToast} readOnly={readOnly} onGoToMatch={() => setTab("partido")} />
         )}
         {tab === "temporada" && (
-          <TemporadaTab history={history} squad={squad} />
+          <TemporadaTab history={history} squad={squad} onGoToMatch={() => setTab("partido")} />
         )}
       </div>
 
@@ -772,16 +1044,24 @@ export default function App({ user = null, team = null, onLogout = null, onSwitc
    HEADER + TAB BAR
 ============================================================================ */
 
-function AppHeader({ settings, tab, team, onOpenSettings }) {
-  const titles = { partido: "Partido", plantilla: "Plantilla", pizarra: "Pizarra", historial: "Historial", temporada: "Temporada" };
+function AppHeader({ settings, tab, team, liveMatch, onOpenSettings }) {
+  const titles = { partido: "Partido", plantilla: "Plantilla", pizarra: "Pizarra", historial: "Partidos", temporada: "Estadísticas" };
+  const live = tab === "partido" && liveMatch;
   return (
     <div className="fm-header">
-      <div style={{ minWidth: 0 }}>
-        <h1>{titles[tab]}</h1>
-        <div className="fm-sub">{team ? team.name : settings.teamName}</div>      </div>
-      <button className="fm-iconbtn" onClick={onOpenSettings} aria-label="Ajustes">
-        <Settings size={18} />
-      </button>
+      <div className="fm-header-id">
+        <div className="fm-header-mark" aria-hidden="true">&#9917;</div>
+        <div className="fm-header-txt">
+          <div className="fm-header-team">{team ? team.name : settings.teamName}</div>
+          <div className="fm-header-sub">{titles[tab]}</div>
+        </div>
+      </div>
+      <div className="fm-header-actions">
+        {live && <span className="fm-live-badge">{live.phase === "descanso" ? "DESCANSO" : "EN JUEGO"}</span>}
+        <button className="fm-iconbtn" onClick={onOpenSettings} aria-label="Ajustes">
+          <Settings size={18} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -791,13 +1071,13 @@ function TabBar({ tab, setTab, hasActiveMatch }) {
     { id: "partido", label: "Partido", icon: Shirt, dot: hasActiveMatch },
     { id: "plantilla", label: "Plantilla", icon: Users },
     { id: "pizarra", label: "Pizarra", icon: PenLine },
-    { id: "historial", label: "Historial", icon: ClipboardList },
-    { id: "temporada", label: "Temporada", icon: BarChart3 },
+    { id: "historial", label: "Partidos", icon: ClipboardList },
+    { id: "temporada", label: "Datos", icon: BarChart3 },
   ];
   return (
     <div className="fm-tabbar">
       {items.map((it) => (
-        <button key={it.id} className={`fm-tab ${tab === it.id ? "active" : ""}`} onClick={() => setTab(it.id)}>
+        <button key={it.id} className={`fm-tab ${tab === it.id ? "active" : ""}`} onClick={() => setTab(it.id)} aria-label={it.label} aria-current={tab === it.id ? "page" : undefined}>
           <span style={{ position: "relative" }}>
             <it.icon size={20} />
             {it.dot && (
@@ -829,74 +1109,67 @@ function SettingsModal({ settings, onSave, onClose, user, team, readOnly, onLogo
   };
 
   return (
-    <div className="fm-overlay" onClick={onClose}>
-      <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="fm-sheet-handle" />
-        <div className="fm-sheet-head">
-          <div className="fm-sheet-title">Ajustes</div>
-          <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
-        </div>
-        <div className="fm-sheet-body">
-          {team && (
-            <div style={{ marginBottom: 16 }}>
-              <span className="fm-label">Equipo actual</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <span style={{ fontWeight: 800, fontSize: 15, flex: 1 }}>{team.name}</span>
-                <span className={`fm-role fm-role-${team.role}`}>
-                  {{ owner: "Propietario", editor: "Editor", viewer: "Solo lectura" }[team.role] || team.role}
-                </span>
-              </div>
-              {canRename && (
-                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                  <input className="fm-input" value={name} onChange={(e) => { setName(e.target.value); setRenamed(false); }} maxLength={40} style={{ flex: 1 }} />
-                  <button className="fm-btn fm-btn-ghost" onClick={doRename} disabled={!name.trim() || name.trim() === team.name}>
-                    {renamed ? <><Check size={16} /> Hecho</> : "Renombrar"}
-                  </button>
-                </div>
-              )}
-              {onSwitchTeam && (
-                <button className="fm-btn fm-btn-ghost fm-btn-block" onClick={() => onSwitchTeam()}>
-                  <ArrowLeftRight size={16} /> Cambiar de equipo
-                </button>
-              )}
-            </div>
-          )}
-          {!readOnly && (
-            <div style={{ marginBottom: 8 }}>
-              <span className="fm-label">Duración de cada parte (minutos)</span>
-              <input
-                className="fm-input"
-                type="number"
-                inputMode="numeric"
-                value={halfMinutes}
-                onChange={(e) => setHalfMinutes(Math.max(1, parseInt(e.target.value || "0", 10)))}
-              />
-            </div>
-          )}
-          {user && (
-            <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--hair)" }}>
-              <span className="fm-label">Cuenta</span>
-              <div style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 10, wordBreak: "break-all" }}>
-                {user.email}
-              </div>
-              <button
-                className="fm-btn fm-btn-ghost fm-btn-block"
-                onClick={() => onLogout && onLogout()}
-              >
-                <ArrowRight size={16} /> Cerrar sesión
+    <Sheet
+      title="Ajustes"
+      onClose={onClose}
+      actions={!readOnly ? (
+        <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => onSave({ halfMinutes: halfMinutes || 25 })}>
+          <Check size={17} /> Guardar
+        </button>
+      ) : null}
+    >
+      {team && (
+        <div style={{ marginBottom: 16 }}>
+          <span className="fm-label">Equipo actual</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <span style={{ fontWeight: 800, fontSize: 15, flex: 1 }}>{team.name}</span>
+            <span className={`fm-role fm-role-${team.role}`}>
+              {{ owner: "Propietario", editor: "Editor", viewer: "Solo lectura" }[team.role] || team.role}
+            </span>
+          </div>
+          {canRename && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <input className="fm-input" value={name} onChange={(e) => { setName(e.target.value); setRenamed(false); }} maxLength={40} style={{ flex: 1 }} enterKeyHint="done" />
+              <button className="fm-btn fm-btn-ghost" onClick={doRename} disabled={!name.trim() || name.trim() === team.name}>
+                {renamed ? <><Check size={16} /> Hecho</> : "Renombrar"}
               </button>
             </div>
           )}
-        </div>
-        {!readOnly && (
-          <div className="fm-sheet-actions">
-            <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => onSave({ halfMinutes: halfMinutes || 25 })}>
-              <Check size={17} /> Guardar
+          {onSwitchTeam && (
+            <button className="fm-btn fm-btn-ghost fm-btn-block" onClick={() => onSwitchTeam()}>
+              <ArrowLeftRight size={16} /> Cambiar de equipo
             </button>
+          )}
+        </div>
+      )}
+      {!readOnly && (
+        <div style={{ marginBottom: 8 }}>
+          <span className="fm-label">Duración de cada parte (minutos)</span>
+          <input
+            className="fm-input"
+            type="number"
+            inputMode="numeric"
+            enterKeyHint="done"
+            value={halfMinutes}
+            onChange={(e) => setHalfMinutes(Math.max(1, parseInt(e.target.value || "0", 10)))}
+          />
+        </div>
+      )}
+      {user && (
+        <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--hair)" }}>
+          <span className="fm-label">Cuenta</span>
+          <div style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 10, wordBreak: "break-all" }}>
+            {user.email}
           </div>
-        )}
-      </div>
-    </div>
+          <button
+            className="fm-btn fm-btn-ghost fm-btn-block"
+            onClick={() => onLogout && onLogout()}
+          >
+            <ArrowRight size={16} /> Cerrar sesión
+          </button>
+        </div>
+      )}
+    </Sheet>
   );
 }
 
@@ -937,6 +1210,11 @@ function PlantillaTab({ squad, onChange, showToast, readOnly }) {
   const guestCount = squad.filter((p) => p.guest).length;
 
   return (
+    <>
+    <div className="fm-screen-head">
+      <div className="fm-screen-title">Plantilla</div>
+      <div className="fm-screen-desc">Tu plantilla habitual y los invitados puntuales.</div>
+    </div>
     <div className="fm-section">
       <div className="fm-row" style={{ marginBottom: 14 }}>
         <span className="fm-h2" style={{ margin: 0 }}>
@@ -949,13 +1227,15 @@ function PlantillaTab({ squad, onChange, showToast, readOnly }) {
         )}
       </div>
 
+      <p className="fm-hint" style={{ marginTop: -6 }}>
+        Toca un jugador para editar su nombre o dorsal. Los invitados son para partidos puntuales.
+      </p>
+
       <div>
         {sorted.map((p) => (
           <div className="fm-list-row" key={p.id} onClick={() => !readOnly && setEditing(p)} style={readOnly ? { cursor: "default" } : undefined}>
             <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, fontSize: 14.5 }}>{p.name}</div>
-            </div>
+            <div className="fm-list-name">{p.name}</div>
             {p.guest && <span className="fm-guest-tag">Invitado</span>}
             {!readOnly && <Pencil size={15} color="var(--ink-faint)" />}
           </div>
@@ -979,6 +1259,7 @@ function PlantillaTab({ squad, onChange, showToast, readOnly }) {
         />
       )}
     </div>
+    </>
   );
 }
 
@@ -989,53 +1270,47 @@ function PlayerEditSheet({ player, onSave, onDelete, onClose }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
-    <div className="fm-overlay" onClick={onClose}>
-      <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="fm-sheet-handle" />
-        <div className="fm-sheet-head">
-          <div className="fm-sheet-title">{player.id ? "Editar jugador" : "Nuevo jugador"}</div>
-          <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
-        </div>
-        <div className="fm-sheet-body">
-          <div style={{ marginBottom: 14 }}>
-            <span className="fm-label">Nombre</span>
-            <input className="fm-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del jugador" autoFocus />
-          </div>
-          <div style={{ marginBottom: 14 }}>
-            <span className="fm-label">Dorsal</span>
-            <input className="fm-input" style={{ width: 90 }} type="number" inputMode="numeric" value={number} onChange={(e) => setNumber(parseInt(e.target.value || "0", 10))} />
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <span className="fm-label">Tipo de jugador</span>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button className={`fm-chip ${!guest ? "on" : ""}`} style={{ flex: 1, justifyContent: "center" }} onClick={() => setGuest(false)}>
-                Habitual
-              </button>
-              <button className={`fm-chip ${guest ? "on" : ""}`} style={{ flex: 1, justifyContent: "center" }} onClick={() => setGuest(true)}>
-                Invitado (amigo puntual)
-              </button>
-            </div>
-          </div>
-          {onDelete && (
-            confirmDelete ? (
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="fm-btn fm-btn-danger" style={{ flex: 1 }} onClick={onDelete}>Confirmar eliminación</button>
-                <button className="fm-btn fm-btn-ghost" style={{ flex: 1 }} onClick={() => setConfirmDelete(false)}>Cancelar</button>
-              </div>
-            ) : (
-              <button className="fm-btn fm-btn-danger fm-btn-block" onClick={() => setConfirmDelete(true)}>
-                <Trash2 size={15} /> Eliminar jugador
-              </button>
-            )
-          )}
-        </div>
-        <div className="fm-sheet-actions">
-          <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => onSave({ id: player.id, name, number, guest })}>
-            <Check size={17} /> Guardar
+    <Sheet
+      title={player.id ? "Editar jugador" : "Nuevo jugador"}
+      onClose={onClose}
+      actions={
+        <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => onSave({ id: player.id, name, number, guest })}>
+          <Check size={17} /> Guardar
+        </button>
+      }
+    >
+      <div style={{ marginBottom: 14 }}>
+        <span className="fm-label">Nombre</span>
+        <input className="fm-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del jugador" enterKeyHint="next" />
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <span className="fm-label">Dorsal</span>
+        <input className="fm-input" style={{ width: 90 }} type="number" inputMode="numeric" enterKeyHint="done" value={number} onChange={(e) => setNumber(parseInt(e.target.value || "0", 10))} />
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <span className="fm-label">Tipo de jugador</span>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button className={`fm-chip ${!guest ? "on" : ""}`} style={{ flex: 1, justifyContent: "center" }} onClick={() => setGuest(false)}>
+            Habitual
+          </button>
+          <button className={`fm-chip ${guest ? "on" : ""}`} style={{ flex: 1, justifyContent: "center" }} onClick={() => setGuest(true)}>
+            Invitado (amigo puntual)
           </button>
         </div>
       </div>
-    </div>
+      {onDelete && (
+        confirmDelete ? (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="fm-btn fm-btn-danger" style={{ flex: 1 }} onClick={onDelete}>Confirmar eliminación</button>
+            <button className="fm-btn fm-btn-ghost" style={{ flex: 1 }} onClick={() => setConfirmDelete(false)}>Cancelar</button>
+          </div>
+        ) : (
+          <button className="fm-btn fm-btn-danger fm-btn-block" onClick={() => setConfirmDelete(true)}>
+            <Trash2 size={15} /> Eliminar jugador
+          </button>
+        )
+      )}
+    </Sheet>
   );
 }
 
@@ -1053,7 +1328,7 @@ function PartidoTab(props) {
 
 /* ---------- Setup ---------- */
 
-function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settings, onStartMatch, onAddPlayer, showToast, readOnly }) {
+function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settings, onStartMatch, onAddPlayer, showToast, readOnly, onGoToSquad }) {
   const [formationKey, setFormationKey] = useState("1-2-3-1");
   const [lineup, setLineup] = useState({});
   const [opponent, setOpponent] = useState("");
@@ -1122,7 +1397,7 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
       events: [],
       rivalGoals: 0,
       mvpVotes: {},
-      notes: "",
+      notesLog: [],
       phase: "h1",
       runningSince: Date.now(),
       h1Seconds: 0, h2Seconds: 0,
@@ -1132,8 +1407,51 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
   };
 
   return (
-    <div className="fm-section">
-      <span className="fm-label">FORMACIÓN</span>
+    <>
+    <div className="fm-screen-head fm-setup-head">
+      <div className="fm-screen-title">Nuevo partido</div>
+      <div className="fm-screen-desc">Monta la alineación y arranca el cronómetro.</div>
+    </div>
+    <div className="fm-section fm-setup">
+      {squad.length === 0 && !readOnly && (
+        <div className="fm-info-banner">
+          <Users size={18} />
+          <div>
+            <b>Primero crea tu plantilla.</b> Añade a tus jugadores para poder montar la alineación.
+            <div style={{ marginTop: 9 }}>
+              <button className="fm-btn fm-btn-primary fm-btn-sm" onClick={onGoToSquad}><Plus size={15} /> Ir a Plantilla</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="fm-card" style={{ marginBottom: 14, padding: 14 }}>
+        {!readOnly ? (
+          <>
+            <div style={{ marginBottom: 12 }}>
+              <span className="fm-label" style={{ marginBottom: 5 }}>Rival</span>
+              <input className="fm-input" value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder="Nombre del equipo rival" enterKeyHint="next" />
+            </div>
+            <div className="fm-field-row" style={{ gap: 10 }}>
+              <div>
+                <span className="fm-label" style={{ marginBottom: 5 }}><CalendarDays size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Fecha</span>
+                <input className="fm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              </div>
+              <div>
+                <span className="fm-label" style={{ marginBottom: 5 }}><MapPin size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Lugar (opcional)</span>
+                <input className="fm-input" value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Campo" enterKeyHint="done" />
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="fm-hint" style={{ margin: 0 }}>Rival, fecha y lugar se definen al crear el partido.</div>
+        )}
+      </div>
+
+      <div className="fm-row" style={{ alignItems: "center", marginBottom: 8 }}>
+        <span className="fm-label" style={{ margin: 0 }}>Formación</span>
+        {!readOnly && <button className="fm-btn fm-btn-ghost fm-btn-sm" onClick={() => setTplListOpen(true)}><FolderOpen size={14} /> Alineaciones</button>}
+      </div>
       <div className="fm-formations">
         {Object.keys(FORMATIONS).map((key) => (
           <button key={key} className={`fm-formation-opt ${formationKey === key ? "active" : ""}`} onClick={() => !readOnly && applyFormation(key)} disabled={readOnly}>
@@ -1142,7 +1460,7 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
         ))}
       </div>
 
-      <div className="fm-pitch-wrap">
+      <div className="fm-pitch-wrap fm-pitch-hero">
         <PitchMarkings />
         {formation.slots.map((slot) => {
           const playerId = lineup[slot.id];
@@ -1158,12 +1476,11 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
         })}
       </div>
 
-      <div className="fm-row" style={{ margin: "12px 0 20px" }}>
-        <span style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{filledCount} de {formation.slots.length} posiciones cubiertas</span>
-        {!readOnly && <button className="fm-btn fm-btn-ghost fm-btn-sm" onClick={() => setTplListOpen(true)}>Alineaciones guardadas</button>}
-      </div>
+      <p className="fm-hint" style={{ margin: "10px 0 12px", textAlign: "center" }}>
+        {filledCount} de {formation.slots.length} posiciones · toca una para asignar jugador
+      </p>
 
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 8 }}>
         <span className="fm-label">Banquillo ({bench.length})</span>
         {bench.length > 0 ? (
           <div className="fm-bench-scroll">
@@ -1178,29 +1495,14 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
       </div>
 
       {!readOnly && (
-        <>
-          <div style={{ marginBottom: 14 }}>
-            <span className="fm-label">Rival</span>
-            <input className="fm-input" value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder="Nombre del equipo rival" />
-          </div>
-          <div className="fm-field-row" style={{ marginBottom: 22 }}>
-            <div>
-              <span className="fm-label"><CalendarDays size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Fecha</span>
-              <input className="fm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
-            <div>
-              <span className="fm-label"><MapPin size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Lugar (opcional)</span>
-              <input className="fm-input" value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Campo" />
-            </div>
-          </div>
-
-          <button className="fm-btn fm-btn-ghost fm-btn-block" style={{ marginBottom: 10 }} onClick={() => setSaveTplOpen(true)} disabled={filledCount === 0}>
-            Guardar esta alineación como plantilla
+        <div className="fm-sticky-actions">
+          <button className="fm-btn fm-btn-ghost auto" onClick={() => setSaveTplOpen(true)} disabled={filledCount === 0} aria-label="Guardar alineación" title="Guardar alineación">
+            <Save size={18} />
           </button>
-          <button className="fm-btn fm-btn-primary fm-btn-block" onClick={handleStart}>
+          <button className="fm-btn fm-btn-primary" onClick={handleStart} disabled={filledCount === 0}>
             <Play size={17} /> Iniciar partido
           </button>
-        </>
+        </div>
       )}
 
       {!readOnly && pickerSlot && (
@@ -1236,6 +1538,7 @@ function MatchSetup({ squad, templates, onSaveTemplate, onDeleteTemplate, settin
         />
       )}
     </div>
+    </>
   );
 }
 
@@ -1268,104 +1571,94 @@ function SlotPickerSheet({ slot, squad, currentPlayerId, assignedIds, onPick, on
   };
 
   return (
-    <div className="fm-overlay" onClick={onClose}>
-      <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="fm-sheet-handle" />
-        <div className="fm-sheet-head">
-          <div className="fm-sheet-title">Posición: {ROLE_LABEL[slot.role]}</div>
-          <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
+    <Sheet title={`Posición: ${ROLE_LABEL[slot.role]}`} onClose={onClose}>
+      {currentPlayerId && (
+        <button className="fm-btn fm-btn-danger fm-btn-block" style={{ marginBottom: 10 }} onClick={onClear}>
+          Quitar de esta posición
+        </button>
+      )}
+      {sorted.length === 0 && <div className="fm-empty-text" style={{ padding: "16px 0" }}>No quedan jugadores libres.</div>}
+      {sorted.map((p) => (
+        <div key={p.id} className="fm-picker-row" onClick={() => onPick(p.id)}>
+          <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
+          <div className="fm-picker-main fm-picker-title" style={{ fontWeight: 700 }}>{p.name}</div>
+          {p.guest && <span className="fm-guest-tag">Invitado</span>}
+          {p.id === currentPlayerId && <Check size={17} color="var(--accent-amber)" />}
         </div>
-        <div className="fm-sheet-body">
-          {currentPlayerId && (
-            <button className="fm-btn fm-btn-danger fm-btn-block" style={{ marginBottom: 10 }} onClick={onClear}>
-              Quitar de esta posición
-            </button>
-          )}
-          {sorted.length === 0 && <div className="fm-empty-text" style={{ padding: "16px 0" }}>No quedan jugadores libres.</div>}
-          {sorted.map((p) => (
-            <div key={p.id} className="fm-picker-row" onClick={() => onPick(p.id)}>
-              <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
-              <div style={{ flex: 1, fontWeight: 700, fontSize: 14.5 }}>{p.name}</div>
-              {p.guest && <span className="fm-guest-tag">Invitado</span>}
-              {p.id === currentPlayerId && <Check size={17} color="var(--accent-amber)" />}
-            </div>
-          ))}
+      ))}
 
-          {onAddPlayer && (
-            addOpen ? (
-              <div style={{ paddingTop: 10, borderTop: "1px solid var(--hair)", marginTop: 6 }}>
-                <span className="fm-label">Nuevo jugador (falta alguien y viene un amigo)</span>
-                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                  <input className="fm-input" style={{ flex: 1 }} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nombre" autoFocus />
-                  <input className="fm-input" style={{ width: 70 }} type="number" inputMode="numeric" value={newNumber} onChange={(e) => setNewNumber(parseInt(e.target.value || "0", 10))} />
-                </div>
-                <button className="fm-btn fm-btn-primary fm-btn-block" disabled={!newName.trim()} onClick={submitAdd}>
-                  <UserPlus size={16} /> Añadir y asignar aquí
-                </button>
-              </div>
-            ) : (
-              <button className="fm-btn fm-btn-ghost fm-btn-block" style={{ marginTop: 6 }} onClick={() => setAddOpen(true)}>
-                <UserPlus size={16} /> Nuevo jugador
-              </button>
-            )
-          )}
-        </div>
-      </div>
-    </div>
+      {onAddPlayer && (
+        addOpen ? (
+          <div style={{ paddingTop: 10, borderTop: "1px solid var(--hair)", marginTop: 6 }}>
+            <span className="fm-label">Nuevo jugador (falta alguien y viene un amigo)</span>
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <input className="fm-input" style={{ flex: 1 }} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nombre" enterKeyHint="next" />
+              <input className="fm-input" style={{ width: 70 }} type="number" inputMode="numeric" enterKeyHint="done" value={newNumber} onChange={(e) => setNewNumber(parseInt(e.target.value || "0", 10))} />
+            </div>
+            <button className="fm-btn fm-btn-primary fm-btn-block" disabled={!newName.trim()} onClick={submitAdd}>
+              <UserPlus size={16} /> Añadir y asignar aquí
+            </button>
+          </div>
+        ) : (
+          <button className="fm-btn fm-btn-ghost fm-btn-block" style={{ marginTop: 6 }} onClick={() => setAddOpen(true)}>
+            <UserPlus size={16} /> Nuevo jugador
+          </button>
+        )
+      )}
+    </Sheet>
   );
 }
 
 function SaveTemplateSheet({ onSave, onClose }) {
   const [name, setName] = useState("");
   return (
-    <div className="fm-overlay" onClick={onClose}>
-      <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="fm-sheet-handle" />
-        <div className="fm-sheet-head">
-          <div className="fm-sheet-title">Guardar alineación</div>
-          <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
-        </div>
-        <div className="fm-sheet-body">
-          <span className="fm-label">Nombre de la plantilla</span>
-          <input className="fm-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Titular contra rivales fuertes" autoFocus />
-        </div>
-        <div className="fm-sheet-actions">
-          <button className="fm-btn fm-btn-primary fm-btn-block" disabled={!name.trim()} onClick={() => onSave(name.trim())}>
-            <Check size={17} /> Guardar
-          </button>
-        </div>
-      </div>
-    </div>
+    <Sheet
+      title="Guardar alineación"
+      onClose={onClose}
+      actions={
+        <button className="fm-btn fm-btn-primary fm-btn-block" disabled={!name.trim()} onClick={() => onSave(name.trim())}>
+          <Check size={17} /> Guardar
+        </button>
+      }
+    >
+      <span className="fm-label">Nombre de la plantilla</span>
+      <input className="fm-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Titular contra rivales fuertes" enterKeyHint="done" />
+    </Sheet>
   );
 }
 
 function TemplateListSheet({ templates, onLoad, onDelete, onClose }) {
   return (
-    <div className="fm-overlay" onClick={onClose}>
-      <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="fm-sheet-handle" />
-        <div className="fm-sheet-head">
-          <div className="fm-sheet-title">Alineaciones guardadas</div>
-          <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
+    <Sheet title="Alineaciones guardadas" onClose={onClose}>
+      {templates.length === 0 && <div className="fm-empty-text" style={{ padding: "16px 0" }}>Aún no has guardado ninguna alineación.</div>}
+      {templates.map((t) => (
+        <div key={t.id} className="fm-picker-row">
+          <div className="fm-picker-main" onClick={() => onLoad(t)}>
+            <div className="fm-picker-title">{t.name}</div>
+            <div className="fm-picker-sub">{t.formation}</div>
+          </div>
+          <button className="fm-iconbtn" onClick={() => onDelete(t.id)} aria-label={`Borrar alineación ${t.name}`}><Trash2 size={16} color="var(--card-red)" /></button>
         </div>
-        <div className="fm-sheet-body">
-          {templates.length === 0 && <div className="fm-empty-text" style={{ padding: "16px 0" }}>Aún no has guardado ninguna alineación.</div>}
-          {templates.map((t) => (
-            <div key={t.id} className="fm-picker-row">
-              <div style={{ flex: 1 }} onClick={() => onLoad(t)}>
-                <div style={{ fontWeight: 700, fontSize: 14.5 }}>{t.name}</div>
-                <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>{t.formation}</div>
-              </div>
-              <button className="fm-iconbtn" onClick={() => onDelete(t.id)}><Trash2 size={16} color="var(--card-red)" /></button>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+      ))}
+    </Sheet>
   );
 }
 
 /* ---------- Live match ---------- */
+
+function LineupSlots({ formation, lineup, playerById, onSlot, readOnly }) {
+  return formation.slots.map((slot) => {
+    const player = playerById[lineup[slot.id]];
+    return (
+      <button key={slot.id} className="fm-slot" style={{ left: `${slot.x}%`, top: `${slot.y}%` }} onClick={() => !readOnly && onSlot(slot.id)} disabled={readOnly}>
+        <div className={`fm-slot-badge ${player ? "filled" : ""}`}>
+          {player ? <span className="fm-num">{player.number}</span> : <Plus size={18} className="fm-slot-empty-icon" />}
+        </div>
+        <span className="fm-slot-label">{player ? lastNameShort(player.name) : ROLE_SHORT[slot.role]}</span>
+      </button>
+    );
+  });
+}
 
 function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMatch, onAddPlayer, showToast, readOnly }) {
   const [now, setNow] = useState(Date.now());
@@ -1431,7 +1724,7 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
         return {
           ...m,
           rivalGoals: m.rivalGoals + 1,
-          events: [...m.events, { id: uid("ev"), minute: currentMinute(m, Date.now()), type: "gol_rival" }],
+          events: [...m.events, { id: uid("ev"), minute: effectiveMinute(m, Date.now()), displayMinute: currentMinute(m, Date.now()), type: "gol_rival" }],
         };
       }
       if (m.rivalGoals === 0) return m;
@@ -1451,7 +1744,7 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
   const logGoal = (scorerId, assistId) => {
     mutateMatch((m) => ({
       ...m,
-      events: [...m.events, { id: uid("ev"), minute: currentMinute(m, Date.now()), type: "gol", playerId: scorerId, assistId: assistId || null }],
+      events: [...m.events, { id: uid("ev"), minute: effectiveMinute(m, Date.now()), displayMinute: currentMinute(m, Date.now()), type: "gol", playerId: scorerId, assistId: assistId || null }],
     }));
     vibrate(40);
     showToast("¡Gol registrado!");
@@ -1461,7 +1754,7 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
   const logSimple = (type, playerId) => {
     mutateMatch((m) => ({
       ...m,
-      events: [...m.events, { id: uid("ev"), minute: currentMinute(m, Date.now()), type, playerId }],
+      events: [...m.events, { id: uid("ev"), minute: effectiveMinute(m, Date.now()), displayMinute: currentMinute(m, Date.now()), type, playerId }],
     }));
     const labels = { parada: "Parada registrada", amarilla: "Tarjeta amarilla registrada", roja: "Tarjeta roja registrada" };
     showToast(labels[type] || "Registrado");
@@ -1470,7 +1763,7 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
 
   const doSubstitution = (slotId, outId, inId) => {
     const role = formation.slots.find((s) => s.id === slotId)?.role;
-    mutateMatch((m) => applySubstitution(m, { slotId, outId, inId, minute: currentMinute(m, Date.now()), role }));
+    mutateMatch((m) => applySubstitution(m, { slotId, outId, inId, minute: effectiveMinute(m, Date.now()), eventMinute: currentMinute(m, Date.now()), role }));
     showToast("Cambio registrado");
     setActionSlot(null);
   };
@@ -1479,11 +1772,11 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
     mutateMatch((m) => {
       const a = m.lineup[slotId];
       const b = m.lineup[targetSlotId];
-      const next = swapPlayers(m, slotId, targetSlotId, currentMinute(m, Date.now()));
+      const next = swapPlayers(m, slotId, targetSlotId, effectiveMinute(m, Date.now()));
       if (next !== m) {
         return {
           ...next,
-          events: [...(next.events || []), { id: uid("ev"), minute: currentMinute(m, Date.now()), type: "movimiento", playerId: a || b, fromSlot: slotId, toSlot: targetSlotId }],
+          events: [...(next.events || []), { id: uid("ev"), minute: effectiveMinute(m, Date.now()), displayMinute: currentMinute(m, Date.now()), type: "movimiento", playerId: a || b, fromSlot: slotId, toSlot: targetSlotId }],
         };
       }
       return m;
@@ -1496,7 +1789,7 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
     let needsSub = false;
     let subSlotId = null;
     mutateMatch((m) => {
-      const res = logCard(m, playerId, type, currentMinute(m, Date.now()));
+      const res = logCard(m, playerId, type, effectiveMinute(m, Date.now()), currentMinute(m, Date.now()));
       needsSub = res.needsSub;
       subSlotId = res.subSlotId;
       return res.match;
@@ -1513,30 +1806,30 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
   const handleFormationChange = (key) => {
     setFormationOpen(false);
     if (key === activeMatch.formation) return;
-    mutateMatch((m) => changeFormation(m, key, currentMinute(m, Date.now())));
+    mutateMatch((m) => changeFormation(m, key, effectiveMinute(m, Date.now()), currentMinute(m, Date.now())));
     showToast(`Formación: ${key}`);
   };
 
-  const handleFinish = (rivalGoalsFinal, notes, mvpVotes) => {
-    const min = currentMinute(activeMatch, Date.now());
+  const handleFinish = (rivalGoalsFinal, notesLog, mvpVotes) => {
+    const min = effectiveMinute(activeMatch, Date.now());
     let h1Seconds = activeMatch.h1Seconds;
     let h2Seconds = activeMatch.h2Seconds;
     if (activeMatch.runningSince) {
       const elapsed = (Date.now() - activeMatch.runningSince) / 1000;
       if (activeMatch.phase === "h1") h1Seconds += elapsed; else h2Seconds += elapsed;
     }
-    const finalized = finalizeIntervals(activeMatch, min);
+    const finalized = migrateMatchNotes(finalizeIntervals(activeMatch, min));
     const finalMatch = {
       ...finalized, h1Seconds, h2Seconds, runningSince: null,
       initialLineup: finalized.initialLineup || activeMatch.initialLineup || initialLineupOf(activeMatch),
-      phase: "finalizado", rivalGoals: rivalGoalsFinal, notes, mvpVotes: mvpVotes || {}, finalMinute: min,
+      phase: "finalizado", rivalGoals: rivalGoalsFinal, notesLog: notesLog || [], mvpVotes: mvpVotes || {}, finalMinute: min,
     };
     onFinishMatch(finalMatch);
     showToast("Partido guardado");
   };
 
   return (
-    <div>
+    <div className="fm-live">
       <div className="fm-scoreboard">
         <div className="fm-sb-top">
           <span className="fm-sb-opponent">vs {activeMatch.opponent}{activeMatch.venue ? ` · ${activeMatch.venue}` : ""}</span>
@@ -1568,6 +1861,7 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
           {!readOnly && <button className="fm-chip" onClick={() => setFormationOpen(true)}><Shirt size={14} /> {activeMatch.formation}</button>}
           <button className="fm-chip" onClick={() => setOrderOpen(true)}><ArrowLeftRight size={14} /> Cambios</button>
           {!readOnly && <button className="fm-chip" onClick={() => setNotesOpen(true)}><PenLine size={14} /> Notas</button>}
+          {!readOnly && <button className="fm-chip" onClick={() => setFinishOpen(true)}><Trophy size={14} /> Finalizar</button>}
         </div>
       </div>
 
@@ -1581,18 +1875,7 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
         </div>
         <div className="fm-pitch-wrap">
           <PitchMarkings />
-          {formation.slots.map((slot) => {
-            const pid = activeMatch.lineup[slot.id];
-            const player = playerById[pid];
-            return (
-              <button key={slot.id} className="fm-slot" style={{ left: `${slot.x}%`, top: `${slot.y}%` }} onClick={() => !readOnly && openSlotAction(slot.id)} disabled={readOnly}>
-                <div className={`fm-slot-badge ${player ? "filled" : ""}`}>
-                  {player ? <span className="fm-num">{player.number}</span> : <Plus size={18} className="fm-slot-empty-icon" />}
-                </div>
-                <span className="fm-slot-label">{player ? lastNameShort(player.name) : ROLE_SHORT[slot.role]}</span>
-              </button>
-            );
-          })}
+          <LineupSlots formation={formation} lineup={activeMatch.lineup} playerById={playerById} onSlot={openSlotAction} readOnly={readOnly} />
         </div>
       </div>
 
@@ -1623,13 +1906,15 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
       </div>
 
       {!readOnly && (
-        <div className="fm-section" style={{ paddingTop: 4 }}>
-          <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => setFinishOpen(true)}>
-            <Trophy size={17} /> Finalizar partido
-          </button>
-          <button className="fm-btn fm-btn-ghost fm-btn-block" style={{ marginTop: 8 }} onClick={() => setDiscardConfirm(true)}>
-            Descartar partido
-          </button>
+        <div className="fm-section" style={{ paddingTop: 0, paddingBottom: 0 }}>
+          <div className="fm-sticky-actions">
+            <button className="fm-btn fm-btn-ghost auto" onClick={() => setDiscardConfirm(true)} aria-label="Descartar partido" title="Descartar partido">
+              <Trash2 size={16} />
+            </button>
+            <button className="fm-btn fm-btn-primary" onClick={() => setFinishOpen(true)}>
+              <Trophy size={17} /> Finalizar partido
+            </button>
+          </div>
         </div>
       )}
 
@@ -1654,103 +1939,86 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
       )}
 
       {formationOpen && (
-        <div className="fm-overlay" onClick={() => setFormationOpen(false)}>
-          <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="fm-sheet-handle" />
-            <div className="fm-sheet-head">
-              <div className="fm-sheet-title">Cambiar formación</div>
-              <button className="fm-iconbtn" onClick={() => setFormationOpen(false)}><X size={18} /></button>
-            </div>
-            <div className="fm-sheet-body">
-              <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 12, lineHeight: 1.45 }}>
-                Se mantienen los mismos jugadores en el campo; se recolocan según la nueva formación.
-              </div>
-              {Object.keys(FORMATIONS).map((key) => (
-                <div
-                  key={key}
-                  className={`fm-picker-row ${key === activeMatch.formation ? "leader" : ""}`}
-                  onClick={() => handleFormationChange(key)}
-                >
-                  <span className="fm-num" style={{ fontSize: 20 }}>{key}</span>
-                  <div style={{ flex: 1 }} />
-                  {key === activeMatch.formation && <Check size={16} color="var(--accent-amber)" />}
-                </div>
-              ))}
-            </div>
+        <Sheet title="Cambiar formación" onClose={() => setFormationOpen(false)}>
+          <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 12, lineHeight: 1.45 }}>
+            Se mantienen los mismos jugadores en el campo; se recolocan según la nueva formación.
           </div>
-        </div>
+          {Object.keys(FORMATIONS).map((key) => (
+            <div
+              key={key}
+              className={`fm-picker-row ${key === activeMatch.formation ? "leader" : ""}`}
+              onClick={() => handleFormationChange(key)}
+            >
+              <span className="fm-num" style={{ fontSize: 20 }}>{key}</span>
+              <div style={{ flex: 1 }} />
+              {key === activeMatch.formation && <Check size={16} color="var(--accent-amber)" />}
+            </div>
+          ))}
+        </Sheet>
       )}
 
       {orderOpen && (
-        <div className="fm-overlay" onClick={() => setOrderOpen(false)}>
-          <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="fm-sheet-handle" />
-            <div className="fm-sheet-head">
-              <div>
-                <div className="fm-sheet-title">Tiempos y cambios</div>
-                <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Totales y desde el último cambio · sin descuento ni descanso</div>
+        <Sheet
+          title="Tiempos y cambios"
+          headerExtra={<div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Totales y desde el último cambio · sin descuento ni descanso</div>}
+          onClose={() => setOrderOpen(false)}
+        >
+          <span className="fm-label">En el campo ({ordering.field.length}) · más tiempo en el campo primero</span>
+          {ordering.field.map(({ player }) => {
+            const s = timeStats[player.id] || { played: 0, bench: 0, onSince: 0, offSince: 0 };
+            return (
+              <div key={player.id} className="fm-picker-row" style={{ alignItems: "stretch" }}>
+                <div className="fm-shirt" style={{ alignSelf: "center" }}><span className="fm-num">{player.number}</span></div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{player.name}</div>
+                  <div className="fm-time-grid">
+                    <div><span className="fm-time-val" style={{ color: "var(--accent-amber)" }}>{s.played}'</span><span className="fm-time-lbl">total en campo</span></div>
+                    <div><span className="fm-time-val" style={{ color: "var(--sky, #5DB6F0)" }}>{s.bench}'</span><span className="fm-time-lbl">total banquillo</span></div>
+                    <div><span className="fm-time-val" style={{ color: "var(--accent-amber)" }}>{s.onSince}'</span><span className="fm-time-lbl">en campo (últ. cambio)</span></div>
+                    <div><span className="fm-time-val" style={{ color: "var(--sky, #5DB6F0)" }}>{s.offSince}'</span><span className="fm-time-lbl">banquillo (últ. cambio)</span></div>
+                  </div>
+                </div>
               </div>
-              <button className="fm-iconbtn" onClick={() => setOrderOpen(false)}><X size={18} /></button>
-            </div>
-            <div className="fm-sheet-body">
-              <span className="fm-label">En el campo ({ordering.field.length}) · ordenados por minutos jugados</span>
-              {ordering.field.map(({ player }) => {
-                const s = timeStats[player.id] || { played: 0, bench: 0, onSince: 0, offSince: 0 };
+            );
+          })}
+          {ordering.field.length === 0 && <div className="fm-empty-text" style={{ padding: "12px 0" }}>Nadie en el campo.</div>}
+
+          <span className="fm-label" style={{ marginTop: 16 }}>Banquillo ({ordering.bench.length}) · más tiempo esperando</span>
+          {ordering.bench.map(({ player }) => {
+            const s = timeStats[player.id] || { played: 0, bench: 0, onSince: 0, offSince: 0 };
+            return (
+              <div key={player.id} className="fm-picker-row" style={{ alignItems: "stretch" }}>
+                <div className="fm-shirt" style={{ alignSelf: "center" }}><span className="fm-num">{player.number}</span></div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{player.name}</div>
+                  <div className="fm-time-grid">
+                    <div><span className="fm-time-val" style={{ color: "var(--accent-amber)" }}>{s.played}'</span><span className="fm-time-lbl">total en campo</span></div>
+                    <div><span className="fm-time-val" style={{ color: "var(--sky, #5DB6F0)" }}>{s.bench}'</span><span className="fm-time-lbl">total banquillo</span></div>
+                    <div><span className="fm-time-val" style={{ color: "var(--accent-amber)" }}>{s.onSince}'</span><span className="fm-time-lbl">en campo (últ. cambio)</span></div>
+                    <div><span className="fm-time-val" style={{ color: "var(--sky, #5DB6F0)" }}>{s.offSince}'</span><span className="fm-time-lbl">banquillo (últ. cambio)</span></div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {ordering.bench.length === 0 && <div className="fm-empty-text" style={{ padding: "12px 0" }}>Sin suplentes disponibles.</div>}
+
+          {suspended.length > 0 && (
+            <>
+              <span className="fm-label" style={{ marginTop: 16 }}>Expulsados (no pueden jugar)</span>
+              {suspended.map((p) => {
+                const s = timeStats[p.id] || { played: 0 };
                 return (
-                  <div key={player.id} className="fm-picker-row" style={{ alignItems: "stretch" }}>
-                    <div className="fm-shirt" style={{ alignSelf: "center" }}><span className="fm-num">{player.number}</span></div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{player.name}</div>
-                      <div className="fm-time-grid">
-                        <div><span className="fm-time-val" style={{ color: "var(--accent-amber)" }}>{s.played}'</span><span className="fm-time-lbl">total en campo</span></div>
-                        <div><span className="fm-time-val" style={{ color: "var(--sky, #5DB6F0)" }}>{s.bench}'</span><span className="fm-time-lbl">total banquillo</span></div>
-                        <div><span className="fm-time-val" style={{ color: "var(--accent-amber)" }}>{s.onSince}'</span><span className="fm-time-lbl">en campo (últ. cambio)</span></div>
-                        <div><span className="fm-time-val" style={{ color: "var(--sky, #5DB6F0)" }}>{s.offSince}'</span><span className="fm-time-lbl">banquillo (últ. cambio)</span></div>
-                      </div>
-                    </div>
+                  <div key={p.id} className="fm-picker-row" style={{ opacity: 0.7 }}>
+                    <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
+                    <div className="fm-picker-main" style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                    <span className="fm-num" style={{ fontSize: 16, color: "var(--card-red)" }}>{s.played}'</span>
                   </div>
                 );
               })}
-              {ordering.field.length === 0 && <div className="fm-empty-text" style={{ padding: "12px 0" }}>Nadie en el campo.</div>}
-
-              <span className="fm-label" style={{ marginTop: 16 }}>Banquillo ({ordering.bench.length}) · más tiempo esperando</span>
-              {ordering.bench.map(({ player }) => {
-                const s = timeStats[player.id] || { played: 0, bench: 0, onSince: 0, offSince: 0 };
-                return (
-                  <div key={player.id} className="fm-picker-row" style={{ alignItems: "stretch" }}>
-                    <div className="fm-shirt" style={{ alignSelf: "center" }}><span className="fm-num">{player.number}</span></div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{player.name}</div>
-                      <div className="fm-time-grid">
-                        <div><span className="fm-time-val" style={{ color: "var(--accent-amber)" }}>{s.played}'</span><span className="fm-time-lbl">total en campo</span></div>
-                        <div><span className="fm-time-val" style={{ color: "var(--sky, #5DB6F0)" }}>{s.bench}'</span><span className="fm-time-lbl">total banquillo</span></div>
-                        <div><span className="fm-time-val" style={{ color: "var(--accent-amber)" }}>{s.onSince}'</span><span className="fm-time-lbl">en campo (últ. cambio)</span></div>
-                        <div><span className="fm-time-val" style={{ color: "var(--sky, #5DB6F0)" }}>{s.offSince}'</span><span className="fm-time-lbl">banquillo (últ. cambio)</span></div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              {ordering.bench.length === 0 && <div className="fm-empty-text" style={{ padding: "12px 0" }}>Sin suplentes disponibles.</div>}
-
-              {suspended.length > 0 && (
-                <>
-                  <span className="fm-label" style={{ marginTop: 16 }}>Expulsados (no pueden jugar)</span>
-                  {suspended.map((p) => {
-                    const s = timeStats[p.id] || { played: 0 };
-                    return (
-                      <div key={p.id} className="fm-picker-row" style={{ opacity: 0.7 }}>
-                        <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
-                        <div style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{p.name}</div>
-                        <span className="fm-num" style={{ fontSize: 16, color: "var(--card-red)" }}>{s.played}'</span>
-                      </div>
-                    );
-                  })}
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+            </>
+          )}
+        </Sheet>
       )}
 
       {finishOpen && (
@@ -1765,9 +2033,10 @@ function LiveMatch({ squad, activeMatch, mutateMatch, onFinishMatch, onDiscardMa
 
       {notesOpen && (
         <NotesSheet
-          notes={activeMatch.notes}
-          onSave={(n) => { mutateMatch((m) => ({ ...m, notes: n }), { skipUndo: true }); setNotesOpen(false); }}
+          match={activeMatch}
+          onUpdate={(next) => mutateMatch(() => next, { skipUndo: true })}
           onClose={() => setNotesOpen(false)}
+          readOnly={readOnly}
         />
       )}
 
@@ -1822,7 +2091,7 @@ function TimelineRow({ ev, playerById }) {
 
   return (
     <div className="fm-tl-item">
-      <span className="fm-tl-min fm-num">{ev.minute}'</span>
+      <span className="fm-tl-min fm-num">{ev.displayMinute ?? ev.minute}'</span>
       <div className="fm-tl-icon" style={{ background: vis.bg }}>
         {ev.type === "amarilla" || ev.type === "roja" || ev.type === "azul" ? (
           <div className="fm-cardshape" style={{ background: ev.type === "amarilla" ? "var(--card-yellow)" : ev.type === "roja" ? "var(--card-red)" : "var(--accent-sky)" }} />
@@ -1855,284 +2124,262 @@ function SlotActionSheet({ actionSlot, match, formation, playerById, bench, orde
     const carded = actionSlot.cardedId ? playerById[actionSlot.cardedId] : null;
     const benchList = ordering ? ordering.bench : (bench || []).map((p) => ({ player: p, minutes: 0 }));
     return (
-      <div className="fm-overlay" onClick={onClose}>
-        <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-          <div className="fm-sheet-handle" />
-          <div className="fm-sheet-head">
-            <div className="fm-sheet-title">
-              {carded ? `Entra por ${lastNameShort(carded.name)}` : ROLE_LABEL[slot.role]}
-            </div>
-            <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
+      <Sheet title={carded ? `Entra por ${lastNameShort(carded.name)}` : ROLE_LABEL[slot.role]} onClose={onClose}>
+        {carded && (
+          <div style={{ fontSize: 12.5, color: "var(--accent-sky)", marginBottom: 10, lineHeight: 1.45 }}>
+            {lastNameShort(carded.name)} no puede seguir jugando (tarjeta azul). Elige al compañero que entra.
           </div>
-          <div className="fm-sheet-body">
-            {carded && (
-              <div style={{ fontSize: 12.5, color: "var(--accent-sky)", marginBottom: 10, lineHeight: 1.45 }}>
-                {lastNameShort(carded.name)} no puede seguir jugando (tarjeta azul). Elige al compañero que entra.
+        )}
+        {!canFill ? (
+          <div className="fm-empty-text" style={{ padding: "16px 0" }}>
+            Jugador expulsado: el equipo juega con uno menos y no se puede sustituir.
+          </div>
+        ) : (
+          <>
+            <span className="fm-label">Hacer entrar desde el banquillo</span>
+            {benchList.length === 0 && <div className="fm-empty-text" style={{ padding: "16px 0" }}>No quedan suplentes.</div>}
+            {benchList.map(({ player: p, minutes }) => (
+              <div key={p.id} className="fm-picker-row" onClick={() => onSub(slotId, actionSlot.cardedId || null, p.id)}>
+                <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
+                <div className="fm-picker-main fm-picker-title">{p.name}</div>
+                {minutes > 0 && <span className="fm-num" style={{ fontSize: 17, color: "var(--ink-soft)" }}>{minutes}'</span>}
+                {p.guest && <span className="fm-guest-tag">Invitado</span>}
               </div>
-            )}
-            {!canFill ? (
-              <div className="fm-empty-text" style={{ padding: "16px 0" }}>
-                Jugador expulsado: el equipo juega con uno menos y no se puede sustituir.
-              </div>
-            ) : (
-              <>
-                <span className="fm-label">Hacer entrar desde el banquillo</span>
-                {benchList.length === 0 && <div className="fm-empty-text" style={{ padding: "16px 0" }}>No quedan suplentes.</div>}
-                {benchList.map(({ player: p, minutes }) => (
-                  <div key={p.id} className="fm-picker-row" onClick={() => onSub(slotId, actionSlot.cardedId || null, p.id)}>
-                    <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
-                    <div style={{ flex: 1, fontWeight: 700, fontSize: 14.5 }}>{p.name}</div>
-                    {minutes > 0 && <span className="fm-num" style={{ fontSize: 17, color: "var(--ink-soft)" }}>{minutes}'</span>}
-                    {p.guest && <span className="fm-guest-tag">Invitado</span>}
-                  </div>
-                ))}
+            ))}
 
-                {onAddPlayer && (
-                  addOpen ? (
-                    <div style={{ paddingTop: 10, borderTop: "1px solid var(--hair)", marginTop: 6 }}>
-                      <span className="fm-label">Nuevo jugador (viene un amigo a última hora)</span>
-                      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                        <input className="fm-input" style={{ flex: 1 }} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nombre" autoFocus />
-                        <input className="fm-input" style={{ width: 70 }} type="number" inputMode="numeric" value={newNumber} onChange={(e) => setNewNumber(parseInt(e.target.value || "0", 10))} />
-                      </div>
-                      <button
-                        className="fm-btn fm-btn-primary fm-btn-block"
-                        disabled={!newName.trim()}
-                        onClick={() => {
-                          const p = onAddPlayer({ name: newName.trim(), number: newNumber, guest: true });
-                          onSub(slotId, actionSlot.cardedId || null, p.id);
-                        }}
-                      >
-                        <UserPlus size={16} /> Añadir y hacer entrar
-                      </button>
-                    </div>
-                  ) : (
-                    <button className="fm-btn fm-btn-ghost fm-btn-block" style={{ marginTop: 6 }} onClick={() => setAddOpen(true)}>
-                      <UserPlus size={16} /> Nuevo jugador
-                    </button>
-                  )
-                )}
-              </>
+            {onAddPlayer && (
+              addOpen ? (
+                <div style={{ paddingTop: 10, borderTop: "1px solid var(--hair)", marginTop: 6 }}>
+                  <span className="fm-label">Nuevo jugador (viene un amigo a última hora)</span>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <input className="fm-input" style={{ flex: 1 }} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nombre" enterKeyHint="next" />
+                    <input className="fm-input" style={{ width: 70 }} type="number" inputMode="numeric" enterKeyHint="done" value={newNumber} onChange={(e) => setNewNumber(parseInt(e.target.value || "0", 10))} />
+                  </div>
+                  <button
+                    className="fm-btn fm-btn-primary fm-btn-block"
+                    disabled={!newName.trim()}
+                    onClick={() => {
+                      const p = onAddPlayer({ name: newName.trim(), number: newNumber, guest: true });
+                      onSub(slotId, actionSlot.cardedId || null, p.id);
+                    }}
+                  >
+                    <UserPlus size={16} /> Añadir y hacer entrar
+                  </button>
+                </div>
+              ) : (
+                <button className="fm-btn fm-btn-ghost fm-btn-block" style={{ marginTop: 6 }} onClick={() => setAddOpen(true)}>
+                  <UserPlus size={16} /> Nuevo jugador
+                </button>
+              )
             )}
-          </div>
-        </div>
-      </div>
+          </>
+        )}
+      </Sheet>
     );
   }
 
   if (mode === "assist") {
     const others = Object.entries(match.lineup).filter(([sId, pid]) => pid !== playerId).map(([sId, pid]) => playerById[pid]).filter(Boolean);
     return (
-      <div className="fm-overlay" onClick={onClose}>
-        <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-          <div className="fm-sheet-handle" />
-          <div className="fm-sheet-head">
-            <div className="fm-sheet-title">¿Asistencia?</div>
-            <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
+      <Sheet title="¿Asistencia?" onClose={onClose}>
+        <button className="fm-action-btn" style={{ marginBottom: 8 }} onClick={() => onGoal(playerId, null)}>
+          <span className="fm-action-icon" style={{ background: "rgba(234,244,238,0.08)" }}><X size={16} /></span>
+          Sin asistencia
+        </button>
+        {others.map((p) => (
+          <div key={p.id} className="fm-picker-row" onClick={() => onGoal(playerId, p.id)}>
+            <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
+            <div className="fm-picker-main fm-picker-title">{p.name}</div>
           </div>
-          <div className="fm-sheet-body">
-            <button className="fm-action-btn" style={{ marginBottom: 8 }} onClick={() => onGoal(playerId, null)}>
-              <span className="fm-action-icon" style={{ background: "rgba(234,244,238,0.08)" }}><X size={16} /></span>
-              Sin asistencia
-            </button>
-            {others.map((p) => (
-              <div key={p.id} className="fm-picker-row" onClick={() => onGoal(playerId, p.id)}>
-                <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
-                <div style={{ flex: 1, fontWeight: 700, fontSize: 14.5 }}>{p.name}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+        ))}
+      </Sheet>
     );
   }
 
   if (mode === "sub") {
     return (
-      <div className="fm-overlay" onClick={onClose}>
-        <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-          <div className="fm-sheet-handle" />
-          <div className="fm-sheet-head">
-            <div>
-              <div className="fm-sheet-title">Cambio: sale {lastNameShort(player.name)}</div>
-              <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-                {minutesPlayed}' total en campo{pStats && pStats.onSince > 0 ? ` · ${pStats.onSince}' desde que entró` : ""} · entra el que más tiempo lleva esperando
+      <Sheet
+        title={`Cambio: sale ${lastNameShort(player.name)}`}
+        headerExtra={<div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+          {minutesPlayed}' total en campo{pStats && pStats.onSince > 0 ? ` · ${pStats.onSince}' desde que entró` : ""} · entra el que más tiempo lleva esperando
+        </div>}
+        onClose={onClose}
+      >
+        {(ordering ? ordering.bench : (bench || []).map((player) => ({ player, minutes: 0 }))).length === 0 && (
+          <div className="fm-empty-text" style={{ padding: "16px 0" }}>No quedan suplentes.</div>
+        )}
+        {(ordering ? ordering.bench : (bench || []).map((player) => ({ player, minutes: 0 }))).map(({ player: p, minutes }) => (
+          <div key={p.id} className="fm-picker-row" onClick={() => onSub(slotId, playerId, p.id)}>
+            <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14.5 }}>{p.name}</div>
+              <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>
+                {timeStats && timeStats[p.id] && timeStats[p.id].played > 0 ? `${timeStats[p.id].played}' jugados · ` : ""}{minutes}' en el banquillo
               </div>
             </div>
-            <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
+            <span className="fm-num" style={{ fontSize: 17, color: "var(--accent-sky)" }}>{timeStats && timeStats[p.id] ? timeStats[p.id].bench : minutes}'</span>
           </div>
-          <div className="fm-sheet-body">
-            {(ordering ? ordering.bench : (bench || []).map((player) => ({ player, minutes: 0 }))).length === 0 && (
-              <div className="fm-empty-text" style={{ padding: "16px 0" }}>No quedan suplentes.</div>
-            )}
-            {(ordering ? ordering.bench : (bench || []).map((player) => ({ player, minutes: 0 }))).map(({ player: p, minutes }) => (
-              <div key={p.id} className="fm-picker-row" onClick={() => onSub(slotId, playerId, p.id)}>
-                <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14.5 }}>{p.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>
-                    {timeStats && timeStats[p.id] && timeStats[p.id].played > 0 ? `${timeStats[p.id].played}' jugados · ` : ""}{minutes}' en el banquillo
-                  </div>
-                </div>
-                <span className="fm-num" style={{ fontSize: 17, color: "var(--accent-sky)" }}>{timeStats && timeStats[p.id] ? timeStats[p.id].bench : minutes}'</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+        ))}
+      </Sheet>
     );
   }
 
   if (mode === "move") {
     const targets = formation.slots.filter((s) => s.id !== slotId);
     return (
-      <div className="fm-overlay" onClick={onClose}>
-        <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-          <div className="fm-sheet-handle" />
-          <div className="fm-sheet-head">
-            <div>
-              <div className="fm-sheet-title">Mover a {lastNameShort(player.name)}</div>
-              <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>Elige la posición: se intercambian los jugadores</div>
+      <Sheet
+        title={`Mover a ${lastNameShort(player.name)}`}
+        headerExtra={<div style={{ fontSize: 12, color: "var(--ink-soft)" }}>Elige la posición: se intercambian los jugadores</div>}
+        onClose={onClose}
+      >
+        {targets.map((s) => {
+          const occupantId = match.lineup[s.id];
+          const occupant = occupantId ? playerById[occupantId] : null;
+          return (
+            <div key={s.id} className="fm-picker-row" onClick={() => onMove(slotId, s.id)}>
+              <span className={`fm-badge-role role-${s.role}`}>{ROLE_SHORT[s.role]}</span>
+              <div style={{ flex: 1, fontSize: 14 }}>
+                {occupant
+                  ? <>Intercambiar con <b>{occupant.name}</b></>
+                  : <>Mover aquí <span style={{ color: "var(--ink-faint)" }}>(posición libre)</span></>}
+              </div>
             </div>
-            <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
-          </div>
-          <div className="fm-sheet-body">
-            {targets.map((s) => {
-              const occupantId = match.lineup[s.id];
-              const occupant = occupantId ? playerById[occupantId] : null;
-              return (
-                <div key={s.id} className="fm-picker-row" onClick={() => onMove(slotId, s.id)}>
-                  <span className={`fm-badge-role role-${s.role}`}>{ROLE_SHORT[s.role]}</span>
-                  <div style={{ flex: 1, fontSize: 14 }}>
-                    {occupant
-                      ? <>Intercambiar con <b>{occupant.name}</b></>
-                      : <>Mover aquí <span style={{ color: "var(--ink-faint)" }}>(posición libre)</span></>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+          );
+        })}
+      </Sheet>
     );
   }
 
   return (
-    <div className="fm-overlay" onClick={onClose}>
-      <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="fm-sheet-handle" />
-        <div className="fm-sheet-head">
-          <div>
-            <div className="fm-sheet-title">{player.name}</div>
-            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-              {ROLE_LABEL[slot.role]} · {minutesPlayed}' total en campo
-              {pStats && pStats.onSince > 0 ? ` · ${pStats.onSince}' desde que entró` : ""}
-            </div>
-          </div>
-          <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
+    <Sheet
+      title={player.name}
+      headerExtra={<div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+        {ROLE_LABEL[slot.role]} · {minutesPlayed}' total en campo
+        {pStats && pStats.onSince > 0 ? ` · ${pStats.onSince}' desde que entró` : ""}
+      </div>}
+      onClose={onClose}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <button className="fm-action-btn" onClick={() => setMode("assist")}>
+          <span className="fm-action-icon" style={{ background: "rgba(245,178,63,0.15)" }}><Target size={17} color="var(--accent-amber)" /></span>
+          Gol
+        </button>
+        <button className="fm-action-btn" onClick={() => onSimple("asistencia", playerId)}>
+          <span className="fm-action-icon" style={{ background: "rgba(79,169,232,0.15)" }}><Send size={17} color="var(--accent-sky)" /></span>
+          Asistencia
+        </button>
+        {slot.role === "POR" && (
+          <button className="fm-action-btn" onClick={() => onSimple("parada", playerId)}>
+            <span className="fm-action-icon" style={{ background: "rgba(143,182,162,0.15)" }}><Hand size={17} color="var(--pitch-line)" /></span>
+            Parada
+          </button>
+        )}
+        <button className="fm-action-btn" onClick={() => onCard("amarilla", playerId)}>
+          <span className="fm-action-icon" style={{ background: "rgba(245,197,24,0.15)" }}><div className="fm-cardshape" style={{ background: "var(--card-yellow)" }} /></span>
+          {yellowCount(match, playerId) >= 1 ? "Tarjeta amarilla (2ª = azul)" : "Tarjeta amarilla"}
+        </button>
+        <button className="fm-action-btn" onClick={() => onCard("roja", playerId)}>
+          <span className="fm-action-icon" style={{ background: "rgba(228,72,60,0.15)" }}><div className="fm-cardshape" style={{ background: "var(--card-red)" }} /></span>
+          Tarjeta roja
+        </button>
+        <button className="fm-action-btn" onClick={() => onCard("azul", playerId)}>
+          <span className="fm-action-icon" style={{ background: "rgba(79,169,232,0.15)" }}><div className="fm-cardshape" style={{ background: "var(--accent-sky)" }} /></span>
+          Tarjeta azul (sustituir)
+        </button>
+        <button className="fm-action-btn" onClick={() => setMode("sub")}>
+          <span className="fm-action-icon" style={{ background: "rgba(234,244,238,0.08)" }}><ArrowLeftRight size={17} /></span>
+          Sustituir por el banquillo
+        </button>
+        <button className="fm-action-btn" onClick={() => setMode("move")}>
+          <span className="fm-action-icon" style={{ background: "rgba(234,244,238,0.08)" }}><Shirt size={17} /></span>
+          Mover de posición
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
+function NotesList({ notes, onDelete }) {
+  const ordered = notesByMinute(notes);
+  if (ordered.length === 0) {
+    return <div className="fm-empty-text" style={{ padding: "10px 0" }}>Todavía no hay notas.</div>;
+  }
+  return ordered.map((n) => (
+    <div key={n.id} className="fm-note-row">
+      <span className="fm-note-min fm-num">{n.minute == null || n.minute === "" ? "—" : `${n.minute}'`}</span>
+      <div className="fm-note-icon"><PenLine size={14} /></div>
+      <span className="fm-note-text">{n.text}</span>
+      {onDelete && (
+        <button className="fm-iconbtn" style={{ width: 30, height: 30 }} onClick={() => onDelete(n.id)} aria-label="Borrar nota">
+          <Trash2 size={14} color="var(--card-red)" />
+        </button>
+      )}
+    </div>
+  ));
+}
+
+function NoteComposer({ defaultMinute, onAdd }) {
+  const [text, setText] = useState("");
+  const [minute, setMinute] = useState(() => (defaultMinute == null ? "" : String(defaultMinute)));
+
+  const add = () => {
+    const entry = newNote({ text, minute: minute === "" ? null : Math.max(0, parseInt(minute, 10) || 0) });
+    if (!entry) return;
+    onAdd(entry);
+    setText("");
+  };
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <div style={{ flex: "0 0 auto", width: 84 }}>
+          <span className="fm-label">Minuto</span>
+          <input
+            className="fm-input"
+            type="number"
+            inputMode="numeric"
+            value={minute}
+            onChange={(e) => setMinute(e.target.value)}
+            placeholder="—"
+          />
         </div>
-        <div className="fm-sheet-body" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <button className="fm-action-btn" onClick={() => setMode("assist")}>
-            <span className="fm-action-icon" style={{ background: "rgba(242,169,59,0.15)" }}><Target size={17} color="var(--accent-amber)" /></span>
-            Gol
-          </button>
-          <button className="fm-action-btn" onClick={() => onSimple("asistencia", playerId)}>
-            <span className="fm-action-icon" style={{ background: "rgba(79,169,232,0.15)" }}><Send size={17} color="var(--accent-sky)" /></span>
-            Asistencia
-          </button>
-          {slot.role === "POR" && (
-            <button className="fm-action-btn" onClick={() => onSimple("parada", playerId)}>
-              <span className="fm-action-icon" style={{ background: "rgba(143,182,162,0.15)" }}><Hand size={17} color="var(--pitch-line)" /></span>
-              Parada
-            </button>
-          )}
-          <button className="fm-action-btn" onClick={() => onCard("amarilla", playerId)}>
-            <span className="fm-action-icon" style={{ background: "rgba(245,197,24,0.15)" }}><div className="fm-cardshape" style={{ background: "var(--card-yellow)" }} /></span>
-            {yellowCount(match, playerId) >= 1 ? "Tarjeta amarilla (2ª = azul)" : "Tarjeta amarilla"}
-          </button>
-          <button className="fm-action-btn" onClick={() => onCard("roja", playerId)}>
-            <span className="fm-action-icon" style={{ background: "rgba(228,72,60,0.15)" }}><div className="fm-cardshape" style={{ background: "var(--card-red)" }} /></span>
-            Tarjeta roja
-          </button>
-          <button className="fm-action-btn" onClick={() => onCard("azul", playerId)}>
-            <span className="fm-action-icon" style={{ background: "rgba(79,169,232,0.15)" }}><div className="fm-cardshape" style={{ background: "var(--accent-sky)" }} /></span>
-            Tarjeta azul (sustituir)
-          </button>
-          <button className="fm-action-btn" onClick={() => setMode("sub")}>
-            <span className="fm-action-icon" style={{ background: "rgba(234,244,238,0.08)" }}><ArrowLeftRight size={17} /></span>
-            Sustituir por el banquillo
-          </button>
-          <button className="fm-action-btn" onClick={() => setMode("move")}>
-            <span className="fm-action-icon" style={{ background: "rgba(234,244,238,0.08)" }}><Shirt size={17} /></span>
-            Mover de posición
-          </button>
+        <div style={{ flex: 1 }}>
+          <span className="fm-label">Nota</span>
+          <input
+            className="fm-input"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Escribe una nota…"
+            onKeyDown={(e) => { if (e.key === "Enter") add(); }}
+          />
         </div>
       </div>
+      <button className="fm-btn fm-btn-primary fm-btn-block" onClick={add} disabled={!text.trim()}>
+        <Plus size={16} /> Añadir nota
+      </button>
     </div>
   );
 }
 
-const NOTE_TAGS = [
-  "Buena presión",
-  "Falta intensidad",
-  "Mejorar saques de banda",
-  "Ocupar bien los espacios",
-  "Bajar a defender",
-  "Subir líneas",
-  "Errores en pases",
-  "Buen juego por banda",
-  "Falta de comunicación",
-  "Mejorar el repliegue",
-];
+function NotesSheet({ match, now, onUpdate, onClose, readOnly }) {
+  const entries = normalizeNotes(match);
 
-function NotesSheet({ notes, onSave, onClose }) {
-  const [text, setText] = useState(notes || "");
-
-  const addTag = (tag) => {
-    setText((prev) => {
-      const base = prev.trimEnd();
-      if (base.includes(tag)) return prev;
-      return base ? `${base}\n• ${tag}` : `• ${tag}`;
-    });
-  };
+  const add = (entry) => onUpdate({ ...match, notesLog: [...entries, entry] });
+  const del = (id) => onUpdate(removeNote(match, id));
 
   return (
-    <div className="fm-overlay" onClick={onClose}>
-      <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="fm-sheet-handle" />
-        <div className="fm-sheet-head">
-          <div>
-            <div className="fm-sheet-title">Notas del partido</div>
-            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>Aspectos tácticos, para el descanso y para después</div>
-          </div>
-          <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
-        </div>
-        <div className="fm-sheet-body">
-          <span className="fm-label">Notas rápidas (toca para añadir)</span>
-          <div className="fm-tags">
-            {NOTE_TAGS.map((t) => (
-              <button key={t} type="button" className="fm-tag" onClick={() => addTag(t)}>{t}</button>
-            ))}
-          </div>
+    <Sheet
+      title="Notas del partido"
+      onClose={onClose}
+      actions={
+        <button className="fm-btn fm-btn-primary fm-btn-block" onClick={onClose}><Check size={17} /> Hecho</button>
+      }
+    >
+      {!readOnly && <NoteComposer defaultMinute={currentMinute(match, Date.now())} onAdd={add} />}
 
-          <span className="fm-label" style={{ marginTop: 14 }}>Notas</span>
-          <textarea
-            className="fm-input fm-textarea"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Escribe aquí lo que quieras recordar de este partido…"
-            autoFocus
-          />
-          <div style={{ fontSize: 11, color: "var(--ink-faint)", textAlign: "right", marginTop: 4 }}>{text.length} caracteres</div>
-        </div>
-        <div className="fm-sheet-actions">
-          {text.trim() && (
-            <button className="fm-btn fm-btn-ghost fm-btn-block" onClick={() => setText("")}><Trash2 size={15} /> Borrar notas</button>
-          )}
-          <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => onSave(text)}><Check size={17} /> Guardar notas</button>
-        </div>
-      </div>
-    </div>
+      <span className="fm-label">Registradas ({entries.length})</span>
+      <NotesList notes={entries} onDelete={readOnly ? undefined : del} />
+    </Sheet>
   );
 }
 
@@ -2163,7 +2410,7 @@ function MvpVoting({ playerIds, playerById, votes, onChange }) {
         return (
           <div key={id} className={`fm-mvp-row ${isLeader ? "leader" : ""}`}>
             <div className="fm-shirt"><span className="fm-num">{p.number}</span></div>
-            <div style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>
+            <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14 }}>
               {p.name}
               {isLeader && <Star size={13} color="var(--accent-amber)" style={{ marginLeft: 6, verticalAlign: -2 }} fill="var(--accent-amber)" />}
             </div>
@@ -2182,44 +2429,47 @@ function MvpVoting({ playerIds, playerById, votes, onChange }) {
 
 function FinishMatchModal({ match, goalsFor, playerById, onConfirm, onClose }) {
   const [rivalGoals, setRivalGoals] = useState(match.rivalGoals);
-  const [notes, setNotes] = useState(match.notes || "");
+  const [notesLog, setNotesLog] = useState(() => normalizeNotes(match));
   const [mvpVotes, setMvpVotes] = useState(match.mvpVotes || {});
   const playerIds = Object.keys(match.intervals || {});
+
+  const addNoteEntry = (entry) => setNotesLog((prev) => [...prev, entry]);
+  const removeNoteEntry = (id) => setNotesLog((prev) => prev.filter((n) => n.id !== id));
+
   return (
-    <div className="fm-overlay" onClick={onClose}>
-      <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="fm-sheet-handle" />
-        <div className="fm-sheet-head">
-          <div className="fm-sheet-title">Finalizar partido</div>
-          <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
-        </div>
-        <div className="fm-sheet-body">
-          <div style={{ textAlign: "center", margin: "6px 0 18px" }}>
-            <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 6 }}>vs {match.opponent}</div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
-              <span className="fm-num" style={{ fontSize: 42 }}>{goalsFor}</span>
-              <span style={{ color: "var(--ink-faint)" }}>–</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <button className="fm-round-btn" onClick={() => setRivalGoals((v) => Math.max(0, v - 1))}><Minus size={14} /></button>
-                <span className="fm-num" style={{ fontSize: 42, minWidth: 30, textAlign: "center" }}>{rivalGoals}</span>
-                <button className="fm-round-btn" onClick={() => setRivalGoals((v) => v + 1)}><Plus size={14} /></button>
-              </div>
-            </div>
+    <Sheet
+      title="Finalizar partido"
+      onClose={onClose}
+      actions={
+        <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => onConfirm(rivalGoals, notesLog, mvpVotes)}>
+          <Trophy size={17} /> Guardar resultado
+        </button>
+      }
+    >
+      <div style={{ textAlign: "center", margin: "6px 0 18px" }}>
+        <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 6 }}>vs {match.opponent}</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
+          <span className="fm-num" style={{ fontSize: 42 }}>{goalsFor}</span>
+          <span style={{ color: "var(--ink-faint)" }}>–</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button className="fm-round-btn" onClick={() => setRivalGoals((v) => Math.max(0, v - 1))}><Minus size={14} /></button>
+            <span className="fm-num" style={{ fontSize: 42, minWidth: 30, textAlign: "center" }}>{rivalGoals}</span>
+            <button className="fm-round-btn" onClick={() => setRivalGoals((v) => v + 1)}><Plus size={14} /></button>
           </div>
-
-          <span className="fm-label">Notas finales (opcional)</span>
-          <textarea className="fm-input fm-textarea" style={{ marginBottom: 18 }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Resumen, aspectos a mejorar…" />
-
-          <span className="fm-label"><Star size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Votación MVP (opcional — puedes completarla más tarde desde el historial)</span>
-          <MvpVoting playerIds={playerIds} playerById={playerById} votes={mvpVotes} onChange={setMvpVotes} />
-        </div>
-        <div className="fm-sheet-actions">
-          <button className="fm-btn fm-btn-primary fm-btn-block" onClick={() => onConfirm(rivalGoals, notes, mvpVotes)}>
-            <Trophy size={17} /> Guardar resultado
-          </button>
         </div>
       </div>
-    </div>
+
+      <span className="fm-label">Notas (opcional · asociadas al minuto)</span>
+      <NoteComposer defaultMinute={currentMinute(match, Date.now())} onAdd={addNoteEntry} />
+      {notesLog.length > 0 && (
+        <div style={{ marginBottom: 18 }}>
+          <NotesList notes={notesLog} onDelete={removeNoteEntry} />
+        </div>
+      )}
+
+      <span className="fm-label"><Star size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Votación MVP (opcional — puedes completarla más tarde desde el historial)</span>
+      <MvpVoting playerIds={playerIds} playerById={playerById} votes={mvpVotes} onChange={setMvpVotes} />
+    </Sheet>
   );
 }
 
@@ -2227,25 +2477,57 @@ function FinishMatchModal({ match, goalsFor, playerById, onConfirm, onClose }) {
    HISTORIAL TAB
 ============================================================================ */
 
-function HistorialTab({ history, squad, onDelete, onUpdateMatch, showToast, readOnly }) {
+function HistorialTab({ history, squad, onDelete, onUpdateMatch, showToast, readOnly, onGoToMatch }) {
   const [openMatchId, setOpenMatchId] = useState(null);
   const playerById = useMemo(() => Object.fromEntries(squad.map((p) => [p.id, p])), [squad]);
   const openMatch = history.find((m) => m.id === openMatchId) || null;
 
+  const summary = useMemo(() => {
+    let w = 0, d = 0, l = 0, gf = 0, ga = 0;
+    history.forEach((m) => {
+      const g = m.events.filter((e) => e.type === "gol").length;
+      gf += g; ga += m.rivalGoals;
+      if (g > m.rivalGoals) w += 1; else if (g === m.rivalGoals) d += 1; else l += 1;
+    });
+    return { w, d, l, gf, ga };
+  }, [history]);
+
   if (history.length === 0) {
     return (
+      <>
+      <div className="fm-screen-head">
+        <div className="fm-screen-title">Partidos</div>
+        <div className="fm-screen-desc">Aquí verás cada partido jugado con su cronología y notas.</div>
+      </div>
       <div className="fm-section">
         <div className="fm-empty">
           <ClipboardList size={34} />
           <div className="fm-empty-title">Todavía no hay partidos</div>
           <div className="fm-empty-text">Cuando termines un partido aparecerá aquí, con goles, cambios y minutos jugados.</div>
+          {!readOnly && onGoToMatch && (
+            <button className="fm-btn fm-btn-primary fm-btn-sm" style={{ marginTop: 16 }} onClick={onGoToMatch}>
+              <Play size={15} /> Preparar un partido
+            </button>
+          )}
         </div>
       </div>
+      </>
     );
   }
 
   return (
+    <>
+    <div className="fm-screen-head">
+      <div className="fm-screen-title">Partidos</div>
+      <div className="fm-screen-desc">Toca un partido para ver la cronología, las notas y el MVP.</div>
+    </div>
     <div className="fm-section">
+      <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
+        <SeasonStatBox label="Jugados" value={history.length} />
+        <SeasonStatBox label="G / E / P" value={`${summary.w}/${summary.d}/${summary.l}`} />
+        <SeasonStatBox label="Goles" value={`${summary.gf}:${summary.ga}`} />
+      </div>
+
       {history.map((m) => {
         const goalsFor = m.events.filter((e) => e.type === "gol").length;
         const result = goalsFor > m.rivalGoals ? "win" : goalsFor === m.rivalGoals ? "draw" : "loss";
@@ -2261,6 +2543,16 @@ function HistorialTab({ history, squad, onDelete, onUpdateMatch, showToast, read
               <span className="fm-match-score">{goalsFor} – {m.rivalGoals}</span>
             </div>
             <div style={{ fontSize: 11.5, color: "var(--ink-faint)", marginTop: 2 }}>{m.formation}{m.venue ? ` · ${m.venue}` : ""}</div>
+            {(() => {
+              const notes = notesByMinute(normalizeNotes(m));
+              if (notes.length === 0) return null;
+              return (
+                <div className="fm-match-notes-hint">
+                  <PenLine size={12} />
+                  <span>{notes.length} nota{notes.length > 1 ? "s" : ""} · {notes[notes.length - 1].text}</span>
+                </div>
+              );
+            })()}
           </div>
         );
       })}
@@ -2276,6 +2568,7 @@ function HistorialTab({ history, squad, onDelete, onUpdateMatch, showToast, read
         />
       )}
     </div>
+    </>
   );
 }
 
@@ -2288,20 +2581,24 @@ function buildShareText(match, playerById) {
     goals.forEach((g) => {
       const scorer = playerById[g.playerId]?.name || "?";
       const assist = g.assistId ? ` (asist. ${playerById[g.assistId]?.name})` : "";
-      text += `- ${g.minute}' ${scorer}${assist}\n`;
+      text += `- ${g.displayMinute ?? g.minute}' ${scorer}${assist}\n`;
     });
   }
   const cards = match.events.filter((e) => e.type === "amarilla" || e.type === "roja");
   if (cards.length) {
     text += "\nTarjetas:\n";
-    cards.forEach((c) => { text += `- ${c.minute}' ${playerById[c.playerId]?.name || "?"} (${c.type === "amarilla" ? "amarilla" : "roja"})\n`; });
+    cards.forEach((c) => { text += `- ${c.displayMinute ?? c.minute}' ${playerById[c.playerId]?.name || "?"} (${c.type === "amarilla" ? "amarilla" : "roja"})\n`; });
   }
   if (match.mvpVotes && Object.keys(match.mvpVotes).length > 0) {
     const max = Math.max(...Object.values(match.mvpVotes));
     const leaders = Object.entries(match.mvpVotes).filter(([, v]) => v === max).map(([id]) => playerById[id]?.name).filter(Boolean);
     if (leaders.length) text += `\n⭐ MVP: ${leaders.join(" / ")}\n`;
   }
-  if (match.notes) text += `\nNotas: ${match.notes}\n`;
+  const notes = notesByMinute(normalizeNotes(match));
+  if (notes.length) {
+    text += "\nNotas:\n";
+    notes.forEach((n) => { text += `- ${n.minute == null ? "—" : `${n.minute}'`} ${n.text}\n`; });
+  }
   return text;
 }
 
@@ -2322,79 +2619,12 @@ function MatchDetailSheet({ match, playerById, onUpdateVotes, onDelete, onClose,
   };
 
   return (
-    <div className="fm-overlay" onClick={onClose}>
-      <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="fm-sheet-handle" />
-        <div className="fm-sheet-head">
-          <div>
-            <div className="fm-sheet-title">vs {match.opponent}</div>
-            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>{formatDateEs(match.date)} · {match.formation}</div>
-          </div>
-          <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
-        </div>
-        <div className="fm-sheet-body">
-          <div style={{ textAlign: "center", margin: "6px 0 16px" }}>
-            <span className="fm-num" style={{ fontSize: 40 }}>{goalsFor} – {match.rivalGoals}</span>
-          </div>
-
-          <div style={{ marginBottom: 18 }}>
-            <span className="fm-label">Alineación titular</span>
-            {formation.slots.map((s) => {
-              const p = playerById[initialLineup[s.id]];
-              if (!p) return null;
-              return (
-                <div key={s.id} className="fm-tl-item" style={{ padding: "7px 0" }}>
-                  <span className={`fm-badge-role role-${s.role}`}>{ROLE_SHORT[s.role]}</span>
-                  <div className="fm-tl-text">{p.name} <span style={{ color: "var(--ink-faint)" }}>#{p.number}</span></div>
-                </div>
-              );
-            })}
-          </div>
-
-          <span className="fm-label">Cronología</span>
-          {eventsByMinute(match.events).map((ev) => <TimelineRow key={ev.id} ev={ev} playerById={playerById} />)}
-          {match.events.length === 0 && <div className="fm-empty-text" style={{ padding: "8px 0 18px" }}>Sin eventos registrados.</div>}
-
-          <div style={{ marginTop: 8, marginBottom: 8 }}>
-            <span className="fm-label"><Star size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Votación MVP</span>
-            {readOnly ? (
-              (() => {
-                const votes = match.mvpVotes || {};
-                const total = Object.values(votes).reduce((a, b) => a + b, 0);
-                if (total === 0) return <div className="fm-empty-text" style={{ padding: "8px 0" }}>Sin votos.</div>;
-                const max = Math.max(...Object.values(votes));
-                const rows = Object.entries(votes)
-                  .filter(([, v]) => v > 0)
-                  .sort((a, b) => b[1] - a[1]);
-                return rows.map(([pid, v]) => (
-                  <div key={pid} className="fm-mvp-row">
-                    <div className="fm-shirt"><span className="fm-num">{playerById[pid]?.number ?? "?"}</span></div>
-                    <div style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>
-                      {playerById[pid]?.name || "—"}
-                      {v === max && <Star size={13} color="var(--accent-amber)" style={{ marginLeft: 6, verticalAlign: -2 }} fill="var(--accent-amber)" />}
-                    </div>
-                    <span className="fm-mvp-count">{v}</span>
-                  </div>
-                ));
-              })()
-            ) : (
-              <MvpVoting
-                playerIds={Object.keys(match.intervals || {})}
-                playerById={playerById}
-                votes={match.mvpVotes || {}}
-                onChange={onUpdateVotes}
-              />
-            )}
-          </div>
-
-          {match.notes && (
-            <div style={{ marginTop: 8 }}>
-              <span className="fm-label">Notas</span>
-              <div style={{ fontSize: 13.5, lineHeight: 1.5, color: "var(--pitch-line)" }}>{match.notes}</div>
-            </div>
-          )}
-        </div>
-        <div className="fm-sheet-actions">
+    <Sheet
+      title={`vs ${match.opponent}`}
+      headerExtra={<div style={{ fontSize: 12, color: "var(--ink-soft)" }}>{formatDateEs(match.date)} · {match.formation}</div>}
+      onClose={onClose}
+      actions={
+        <>
           <button className="fm-btn fm-btn-primary fm-btn-block" onClick={share}><Share2 size={16} /> Compartir resumen</button>
           {!readOnly && (
             confirmDelete ? (
@@ -2406,9 +2636,74 @@ function MatchDetailSheet({ match, playerById, onUpdateVotes, onDelete, onClose,
               <button className="fm-btn fm-btn-ghost fm-btn-block" onClick={() => setConfirmDelete(true)}><Trash2 size={15} /> Eliminar partido</button>
             )
           )}
-        </div>
+        </>
+      }
+    >
+      <div style={{ textAlign: "center", margin: "6px 0 16px" }}>
+        <span className="fm-num" style={{ fontSize: 40 }}>{goalsFor} – {match.rivalGoals}</span>
       </div>
-    </div>
+
+      <div style={{ marginBottom: 18 }}>
+        <span className="fm-label">Alineación titular</span>
+        {formation.slots.map((s) => {
+          const p = playerById[initialLineup[s.id]];
+          if (!p) return null;
+          return (
+            <div key={s.id} className="fm-tl-item" style={{ padding: "7px 0" }}>
+              <span className={`fm-badge-role role-${s.role}`}>{ROLE_SHORT[s.role]}</span>
+              <div className="fm-tl-text">{p.name} <span style={{ color: "var(--ink-faint)" }}>#{p.number}</span></div>
+            </div>
+          );
+        })}
+      </div>
+
+      <span className="fm-label">Cronología</span>
+      {eventsByMinute(match.events).map((ev) => <TimelineRow key={ev.id} ev={ev} playerById={playerById} />)}
+      {match.events.length === 0 && <div className="fm-empty-text" style={{ padding: "8px 0 18px" }}>Sin eventos registrados.</div>}
+
+      <div style={{ marginTop: 8, marginBottom: 8 }}>
+        <span className="fm-label"><Star size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Votación MVP</span>
+        {readOnly ? (
+          (() => {
+            const votes = match.mvpVotes || {};
+            const total = Object.values(votes).reduce((a, b) => a + b, 0);
+            if (total === 0) return <div className="fm-empty-text" style={{ padding: "8px 0" }}>Sin votos.</div>;
+            const max = Math.max(...Object.values(votes));
+            const rows = Object.entries(votes)
+              .filter(([, v]) => v > 0)
+              .sort((a, b) => b[1] - a[1]);
+            return rows.map(([pid, v]) => (
+              <div key={pid} className="fm-mvp-row">
+                <div className="fm-shirt"><span className="fm-num">{playerById[pid]?.number ?? "?"}</span></div>
+                <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14 }}>
+                  {playerById[pid]?.name || "—"}
+                  {v === max && <Star size={13} color="var(--accent-amber)" style={{ marginLeft: 6, verticalAlign: -2 }} fill="var(--accent-amber)" />}
+                </div>
+                <span className="fm-mvp-count">{v}</span>
+              </div>
+            ));
+          })()
+        ) : (
+          <MvpVoting
+            playerIds={Object.keys(match.intervals || {})}
+            playerById={playerById}
+            votes={match.mvpVotes || {}}
+            onChange={onUpdateVotes}
+          />
+        )}
+      </div>
+
+      {(() => {
+        const notes = notesByMinute(normalizeNotes(match));
+        if (notes.length === 0) return null;
+        return (
+          <div style={{ marginTop: 8, marginBottom: 8 }}>
+            <span className="fm-label"><PenLine size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Notas ({notes.length})</span>
+            <NotesList notes={notes} />
+          </div>
+        );
+      })()}
+    </Sheet>
   );
 }
 
@@ -2416,7 +2711,7 @@ function MatchDetailSheet({ match, playerById, onUpdateVotes, onDelete, onClose,
    TEMPORADA TAB
 ============================================================================ */
 
-function TemporadaTab({ history, squad }) {
+function TemporadaTab({ history, squad, onGoToMatch }) {
   const [metric, setMetric] = useState("goles");
 
   const playerById = useMemo(() => Object.fromEntries(squad.map((p) => [p.id, p])), [squad]);
@@ -2432,9 +2727,9 @@ function TemporadaTab({ history, squad }) {
     squad.forEach((p) => { map[p.id] = emptyStat(p); });
     history.forEach((m) => {
       const playedIds = new Set();
-      const finalMin = m.finalMinute || currentMinute(m, Date.now());
+      const finalMin = m.finalMinute || effectiveMinute(m, Date.now());
       const h1Base = firstHalfBase(m);
-      const capMin = h1Base + (m.halfMinutes || 25);
+      const capMin = finalMin;
       Object.entries(m.intervals || {}).forEach(([pid, intervals]) => {
         if (!map[pid]) map[pid] = emptyStat(playerById[pid] || { name: "Desconocido", number: "?" });
         intervals.forEach((iv) => {
@@ -2505,17 +2800,33 @@ function TemporadaTab({ history, squad }) {
 
   if (history.length === 0) {
     return (
+      <>
+      <div className="fm-screen-head">
+        <div className="fm-screen-title">Estadísticas</div>
+        <div className="fm-screen-desc">Se calculan a partir de los partidos finalizados.</div>
+      </div>
       <div className="fm-section">
         <div className="fm-empty">
           <BarChart3 size={34} />
           <div className="fm-empty-title">Aún sin estadísticas</div>
           <div className="fm-empty-text">Las estadísticas de temporada se calculan a partir de los partidos finalizados.</div>
+          {onGoToMatch && (
+            <button className="fm-btn fm-btn-primary fm-btn-sm" style={{ marginTop: 16 }} onClick={onGoToMatch}>
+              <Play size={15} /> Preparar un partido
+            </button>
+          )}
         </div>
       </div>
+      </>
     );
   }
 
   return (
+    <>
+    <div className="fm-screen-head">
+      <div className="fm-screen-title">Estadísticas</div>
+      <div className="fm-screen-desc">Rendimiento del equipo y de cada jugador.</div>
+    </div>
     <div className="fm-section">
       <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
         <SeasonStatBox label="Jugados" value={history.length} />
@@ -2614,14 +2925,15 @@ function TemporadaTab({ history, squad }) {
         </table>
       </div>
     </div>
+    </>
   );
 }
 
 function SeasonStatBox({ label, value }) {
   return (
-    <div style={{ flex: 1, background: "var(--pitch-mid)", border: "1px solid var(--hair-strong)", borderRadius: 12, padding: "10px 4px", textAlign: "center" }}>
-      <div className="fm-num" style={{ fontSize: 22 }}>{value}</div>
-      <div style={{ fontSize: 10, color: "var(--ink-soft)", fontWeight: 700, marginTop: 2 }}>{label}</div>
+    <div className="fm-card" style={{ flex: 1, padding: "12px 6px", textAlign: "center", borderRadius: "var(--radius)" }}>
+      <div className="fm-num" style={{ fontSize: 24 }}>{value}</div>
+      <div style={{ fontSize: 10, color: "var(--ink-soft)", fontWeight: 800, marginTop: 2, textTransform: "uppercase", letterSpacing: "0.03em" }}>{label}</div>
     </div>
   );
 }
@@ -2762,17 +3074,23 @@ function PizarraTab({ squad, boards, onChange, showToast, readOnly }) {
     ctx.restore();
   }, []);
 
+  const strokesRef = useRef(strokes);
+  useEffect(() => { strokesRef.current = strokes; }, [strokes]);
+
   const resize = useCallback(() => {
     const wrap = wrapRef.current;
     const canvas = canvasRef.current;
     if (!wrap || !canvas) return;
     const rect = wrap.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.round(rect.width * dpr);
     canvas.height = Math.round(rect.height * dpr);
     sizeRef.current = { w: rect.width, h: rect.height, dpr };
-    redraw(strokes);
-  }, [redraw, strokes]);
+    // Usamos la lista actual (vía ref) para que al girar el móvil o redimensionar
+    // no se redibuje una versión antigua: las pizarras cargadas seguían viéndose.
+    redraw(strokesRef.current);
+  }, [redraw]);
 
   useEffect(() => {
     resize();
@@ -2780,8 +3098,7 @@ function PizarraTab({ squad, boards, onChange, showToast, readOnly }) {
     if (wrapRef.current) ro.observe(wrapRef.current);
     window.addEventListener("orientationchange", resize);
     return () => { ro.disconnect(); window.removeEventListener("orientationchange", resize); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [resize]);
 
   useEffect(() => { redraw(strokes); }, [strokes, redraw]);
 
@@ -2891,11 +3208,18 @@ function PizarraTab({ squad, boards, onChange, showToast, readOnly }) {
   };
 
   const loadBoard = (b) => {
-    setStrokes(b.strokes || []);
+    const loaded = b.strokes || [];
+    strokesRef.current = loaded;
+    setStrokes(loaded);
     setBoardId(b.id);
     setBoardName(b.name);
     setDirty(false);
     setListOpen(false);
+    // Redibujamos al instante (no esperamos al efecto) para que la pizarra
+    // cargada aparezca siempre, incluso si el canvas se monta/redimensiona
+    // justo al abrir la hoja.
+    redraw(loaded);
+    requestAnimationFrame(resize);
     showToast(`Pizarra "${b.name}" cargada`);
   };
 
@@ -2912,6 +3236,11 @@ function PizarraTab({ squad, boards, onChange, showToast, readOnly }) {
   ];
 
   return (
+    <>
+    <div className="fm-screen-head">
+      <div className="fm-screen-title">Pizarra</div>
+      <div className="fm-screen-desc">Dibuja jugadas y guárdalas para el equipo.</div>
+    </div>
     <div className="fm-section">
       <div className="fm-row" style={{ marginBottom: 2 }}>
         <span style={{ fontSize: 13, fontWeight: 700 }}>{boardName}{dirty ? " ·" : ""}</span>
@@ -2920,13 +3249,18 @@ function PizarraTab({ squad, boards, onChange, showToast, readOnly }) {
 
       <div className="fm-board-toolbar" style={readOnly ? { display: "none" } : undefined}>
         {tools.map((t) => (
-          <button key={t.id} className={`fm-tool-btn ${tool === t.id ? "active" : ""}`} onClick={() => setTool(t.id)} aria-label={t.label}>
+          <button key={t.id} title={t.label} className={`fm-tool-btn ${tool === t.id ? "active" : ""}`} onClick={() => setTool(t.id)} aria-label={t.label}>
             <t.icon size={19} />
           </button>
         ))}
-        <button className="fm-tool-btn" onClick={undo} aria-label="Deshacer"><RotateCcw size={19} /></button>
-        <button className="fm-tool-btn" onClick={() => setClearConfirm(true)} aria-label="Borrar todo"><Trash2 size={19} /></button>
+        <button className="fm-tool-btn" onClick={undo} aria-label="Deshacer" title="Deshacer"><RotateCcw size={19} /></button>
+        <button className="fm-tool-btn" onClick={() => setClearConfirm(true)} aria-label="Borrar todo" title="Borrar todo"><Trash2 size={19} /></button>
       </div>
+      {!readOnly && (
+        <p className="fm-tool-name">
+          Herramienta: <span>{tools.find((t) => t.id === tool)?.label}</span> · dibuja con el dedo o el lápiz
+        </p>
+      )}
 
       {!readOnly && (
         <div className="fm-color-row">
@@ -3011,6 +3345,7 @@ function PizarraTab({ squad, boards, onChange, showToast, readOnly }) {
         </div>
       )}
     </div>
+    </>
   );
 }
 
@@ -3027,51 +3362,57 @@ function distToSegment(px, py, x1, y1, x2, y2) {
 function SaveBoardSheet({ initialName, onSave, onClose }) {
   const [name, setName] = useState(initialName || "");
   return (
-    <div className="fm-overlay" onClick={onClose}>
-      <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="fm-sheet-handle" />
-        <div className="fm-sheet-head">
-          <div className="fm-sheet-title">Guardar pizarra</div>
-          <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
-        </div>
-        <div className="fm-sheet-body">
-          <span className="fm-label">Nombre</span>
-          <input className="fm-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Saque de banda ofensivo" autoFocus />
-        </div>
-        <div className="fm-sheet-actions">
-          <button className="fm-btn fm-btn-primary fm-btn-block" disabled={!name.trim()} onClick={() => onSave(name.trim())}>
-            <Check size={17} /> Guardar
-          </button>
-        </div>
-      </div>
-    </div>
+    <Sheet
+      title="Guardar pizarra"
+      onClose={onClose}
+      actions={
+        <button className="fm-btn fm-btn-primary fm-btn-block" disabled={!name.trim()} onClick={() => onSave(name.trim())}>
+          <Check size={17} /> Guardar
+        </button>
+      }
+    >
+      <span className="fm-label">Nombre</span>
+      <input className="fm-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Saque de banda ofensivo" enterKeyHint="done" />
+    </Sheet>
   );
+}
+
+function BoardThumb({ strokes, size = 56 }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = size, h = Math.round((size * 4) / 3);
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    drawPitchOnCanvas(ctx, w, h);
+    (strokes || []).forEach((s) => drawStroke(ctx, w, h, s));
+    ctx.restore();
+  }, [strokes, size]);
+  return <canvas ref={ref} className="fm-board-thumb" style={{ width: size, height: Math.round((size * 4) / 3) }} />;
 }
 
 function BoardListSheet({ boards, onLoad, onDelete, onClose, readOnly }) {
   return (
-    <div className="fm-overlay" onClick={onClose}>
-      <div className="fm-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="fm-sheet-handle" />
-        <div className="fm-sheet-head">
-          <div className="fm-sheet-title">Pizarras guardadas</div>
-          <button className="fm-iconbtn" onClick={onClose}><X size={18} /></button>
+    <Sheet title="Pizarras guardadas" onClose={onClose}>
+      {boards.length === 0 && <div className="fm-empty-text" style={{ padding: "16px 0" }}>Aún no hay pizarras guardadas.</div>}
+      {boards.map((b) => (
+        <div key={b.id} className="fm-picker-row">
+          <BoardThumb strokes={b.strokes} />
+          <div className="fm-picker-main" onClick={() => onLoad(b)}>
+            <div className="fm-picker-title">{b.name}</div>
+            <div className="fm-picker-sub">{b.strokes?.length || 0} elementos{b.strokes?.length ? ` · ${b.strokes.filter((s) => s.type === "pen").length} trazos` : ""}</div>
+          </div>
+          {!readOnly && (
+            <button className="fm-iconbtn" onClick={() => onDelete(b.id)} aria-label={`Borrar pizarra ${b.name}`}><Trash2 size={16} color="var(--card-red)" /></button>
+          )}
         </div>
-        <div className="fm-sheet-body">
-          {boards.length === 0 && <div className="fm-empty-text" style={{ padding: "16px 0" }}>Aún no hay pizarras guardadas.</div>}
-          {boards.map((b) => (
-            <div key={b.id} className="fm-picker-row">
-              <div style={{ flex: 1 }} onClick={() => onLoad(b)}>
-                <div style={{ fontWeight: 700, fontSize: 14.5 }}>{b.name}</div>
-                <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{b.strokes?.length || 0} elementos</div>
-              </div>
-              {!readOnly && (
-                <button className="fm-iconbtn" onClick={() => onDelete(b.id)}><Trash2 size={16} color="var(--card-red)" /></button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+      ))}
+    </Sheet>
   );
 }

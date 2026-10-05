@@ -92,7 +92,16 @@ describe("temporizador", () => {
     const m = { phase: "h2", halfMinutes: 25, h1Seconds: 27.5 * 60, h2Seconds: 0, runningSince: 1000 };
     expect(timerDisplay(m, 1000).main).toBe("25:00");
     expect(timerDisplay(m, 1000 + 30 * MS).main).toBe("25:30");
+    // El minuto de partido (eventos) también arranca en 25+1 = 26, no en 28.
     expect(currentMinute(m, 1000 + 30 * MS)).toBe(26);
+  });
+
+  it("la 2ª parte arranca en 25:00 también si la 1ª fue más corta", () => {
+    const m = { phase: "descanso", halfMinutes: 25, h1Seconds: 20 * 60, h2Seconds: 0, runningSince: null };
+    expect(timerDisplay(m, 0).main).toBe("25:00");
+    const m2 = { ...m, phase: "h2", h2Seconds: 3 * 60 };
+    expect(timerDisplay(m2, 0).main).toBe("28:00");
+    expect(currentMinute(m2, 0)).toBe(29);
   });
 
   it("muestra el descuento con +N' al pasarse de la parte", () => {
@@ -104,13 +113,13 @@ describe("temporizador", () => {
 });
 
 describe("minuto efectivo (sin descuento)", () => {
-  it("capa la 1a parte a halfMin aunque se juegue mas", () => {
+  it("la 1a parte cuenta el tiempo real aunque pase de halfMin", () => {
     const m = { phase: "h1", halfMinutes: 25, h1Seconds: 27 * 60, h2Seconds: 0, runningSince: null };
-    expect(effectiveMinute(m, 0)).toBe(25); // 27 reales -> 25 efectivos
+    expect(effectiveMinute(m, 0)).toBe(27); // 27 reales -> 27 efectivos (tiempo real)
   });
-  it("la 2a parte arranca desde el fin real de la 1a y capa igual", () => {
+  it("la 2a parte arranca desde el fin real de la 1a y suma su tiempo real", () => {
     const m = { phase: "h2", halfMinutes: 25, h1Seconds: 25 * 60, h2Seconds: 27 * 60, runningSince: null };
-    expect(effectiveMinute(m, 0)).toBe(50); // 25 + 25 capados
+    expect(effectiveMinute(m, 0)).toBe(52); // 25 + 27 (tiempo real)
   });
   it("si la 1a parte se corto antes, la 2a arranca desde ahi (sin hueco de descanso)", () => {
     const m = { phase: "h2", halfMinutes: 25, h1Seconds: 8 * 60, h2Seconds: 5 * 60, runningSince: null };
@@ -169,11 +178,11 @@ describe("tiempos por jugador (jugado, banquillo, desde el ultimo cambio)", () =
     expect(s.p9.offSince).toBe(20); // nunca ha jugado
   });
 
-  it("no cuenta el tiempo de descuento en los minutos", () => {
+  it("cuenta el tiempo real (incluido el descuento) en los minutos", () => {
     const m = make({ h1Seconds: 28 * 60 }); // 28 reales, halfMin 25
     const s = playerTimeStats(m, squad, 0);
-    expect(s.p1.played).toBe(25); // capado a 25
-    expect(s.p9.bench).toBe(25);
+    expect(s.p1.played).toBe(28); // cuenta el tiempo real (con descuento)
+    expect(s.p9.bench).toBe(28);
   });
 
   it("al ir a descanso pronto, no marca 25 minutos (bug reportado)", () => {
@@ -192,5 +201,18 @@ describe("tiempos por jugador (jugado, banquillo, desde el ultimo cambio)", () =
     const m2 = make({ phase: "h2", h1Seconds: 25 * 60, h2Seconds: 0, runningSince: null });
     const s2 = playerTimeStats(m2, squad, 0);
     expect(s2.p1.played).toBe(25); // sigue 25 al empezar la 2a parte
+  });
+
+  it("el reloj estandariza la 2ª parte en 25, pero los tiempos de jugador son reales", () => {
+    // 1ª parte corta (20') + 2ª de 10' = 30' reales jugados por p1.
+    const m = make({ phase: "h2", h1Seconds: 20 * 60, h2Seconds: 10 * 60, runningSince: null });
+    expect(timerDisplay(m, 0).main).toBe("35:00"); // reloj de partido: 25 + 10
+    const s = playerTimeStats(m, squad, 0);
+    expect(s.p1.played).toBe(30); // 20 reales + 10 reales, NO 35
+    expect(s.p1.onSince).toBe(30);
+    // Si la 1ª parte se alargó a 28' y la 2ª va 2', total real = 30' (no 27).
+    const m2 = make({ phase: "h2", h1Seconds: 28 * 60, h2Seconds: 2 * 60, runningSince: null });
+    expect(timerDisplay(m2, 0).main).toBe("27:00"); // 25 + 2
+    expect(playerTimeStats(m2, squad, 0).p1.played).toBe(30); // 28 + 2
   });
 });
