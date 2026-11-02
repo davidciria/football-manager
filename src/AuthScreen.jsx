@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useKeyboardInset, useFocusReveal } from "./keyboard.js";
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
@@ -6,11 +7,13 @@ const CSS = `
   --deep:#0B1A14; --mid:#12291F; --mid2:#1B3D2F; --line:#F2FAF5;
   --soft:#9DBFAF; --faint:#6F8F7E; --amber:#F5B23F; --amber-ink:#3A2405;
   --red:#FF5A4D; --hair:rgba(234,244,238,0.10); --hair2:rgba(234,244,238,0.18);
-  height:100vh; height:100dvh; width:100%; display:flex; align-items:center; justify-content:center;
-  overflow-y:auto;
+  height:100vh; height:100dvh; width:100%; display:flex; align-items:flex-start; justify-content:center;
+  overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
   background:radial-gradient(1200px 620px at 50% -12%, #17362A 0%, var(--deep) 58%);
   color:var(--line); font-family:'Manrope',system-ui,sans-serif;
-  padding:calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+  /* --kb-inset: altura del teclado en iOS. Deja hueco abajo para que el campo
+     enfocado pueda quedar por encima del teclado. */
+  padding:calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom) + var(--kb-inset, 0px));
   box-sizing:border-box;
 }
 .fm-auth *{box-sizing:border-box;}
@@ -78,6 +81,8 @@ export function Splash() {
 }
 
 export default function AuthScreen({ onAuthed }) {
+  const { scrollerRef, onFocusCapture } = useFocusReveal();
+  useKeyboardInset();
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -111,7 +116,7 @@ export default function AuthScreen({ onAuthed }) {
   }
 
   return (
-    <div className="fm-auth">
+    <div className="fm-auth" ref={scrollerRef} onFocusCapture={onFocusCapture}>
       <style>{CSS}</style>
       <form className="fm-auth-card" onSubmit={submit}>
         <div className="fm-auth-logo">

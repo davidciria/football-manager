@@ -18,6 +18,7 @@ import {
   effectiveMinute, playerTimeStats, clippedDuration, firstHalfBase,
   normalizeNotes, removeNote, newNote, notesByMinute, migrateMatchNotes, migrateHistory,
 } from "./matchLogic.js";
+import { useKeyboardInset, useFocusReveal } from "./keyboard.js";
 
 /* ============================================================================
    DESIGN TOKENS
@@ -590,68 +591,6 @@ const CSS = `
   color:var(--pitch-line);font-family:'Teko',sans-serif;font-size:22px;z-index:100;
 }
 `;
-
-/* ============================================================================
-   iOS Safari NO soporta interactive-widget=resizes-content: el teclado se
-   superpone y Safari desplaza el visualViewport. La técnica fiable es NO tocar
-   el layout y, en su lugar, exponer la altura del teclado en una variable CSS
-   (--kb-inset) y usarla para subir el pie de la hoja por encima del teclado.
-============================================================================ */
-function useKeyboardInset() {
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const root = document.documentElement;
-    const sync = () => {
-      const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
-      root.style.setProperty("--kb-inset", inset + "px");
-    };
-    sync();
-    vv.addEventListener("resize", sync);
-    vv.addEventListener("scroll", sync);
-    // Safari a veces reporta el valor definitivo uno o dos frames después.
-    const raf = requestAnimationFrame(sync);
-    const t = setTimeout(sync, 250);
-    return () => {
-      vv.removeEventListener("resize", sync);
-      vv.removeEventListener("scroll", sync);
-      cancelAnimationFrame(raf);
-      clearTimeout(t);
-      root.style.setProperty("--kb-inset", "0px");
-    };
-  }, []);
-}
-
-function useFocusReveal() {
-  const scrollerRef = useRef(null);
-
-  // Al enfocar un input dentro de la hoja, comprobamos si quedaría tapado por
-  // el teclado y, solo entonces, desplazamos el scroller de la propia hoja lo
-  // justo para dejarlo visible. No usamos scrollIntoView (mueve ancestros y
-  // provoca el "salto" hacia arriba en iOS).
-  const onFocusCapture = (e) => {
-    const el = e.target;
-    if (!el || (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA")) return;
-    const scroller = scrollerRef.current;
-    if (!scroller) return;
-    const run = () => {
-      const vv = window.visualViewport;
-      const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-      const r = el.getBoundingClientRect();
-      const margin = 16;
-      if (r.bottom > visibleBottom - margin) {
-        scroller.scrollTop += Math.round(r.bottom - (visibleBottom - margin));
-      } else if (r.top < (vv ? vv.offsetTop : 0) + margin) {
-        scroller.scrollTop -= Math.round((vv ? vv.offsetTop : 0) + margin - r.top);
-      }
-    };
-    // Tras el foco y tras el primer frame de la apertura del teclado.
-    requestAnimationFrame(run);
-    setTimeout(run, 200);
-  };
-
-  return { scrollerRef, onFocusCapture };
-}
 
 /* Hoja inferior reutilizable. Se monta con un portal en <body> para que ningún
    contenedor con scroll/backdrop-filter de la pantalla la atrape ni la deje por
